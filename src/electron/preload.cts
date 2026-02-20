@@ -11,6 +11,8 @@ electron.contextBridge.exposeInMainWorld("electron", {
   backendInitSchema: () => ipcInvoke("backendInitSchema"),
   backendSeedInitialData: () => ipcInvoke("backendSeedInitialData"),
   backendGetBootstrapStatus: () => ipcInvoke("backendGetBootstrapStatus"),
+  mapsGetByLayer: (params) => electron.ipcRenderer.invoke("mapsGetByLayer", params),
+  mapsUpsert: (payload) => electron.ipcRenderer.invoke("mapsUpsert", payload),
 } satisfies Window["electron"]);
 
 function ipcInvoke<Key extends keyof EventPayloadMapping>(
