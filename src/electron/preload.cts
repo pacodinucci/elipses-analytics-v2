@@ -7,6 +7,9 @@ electron.contextBridge.exposeInMainWorld("electron", {
     });
   },
   getStaticData: () => ipcInvoke("getStaticData"),
+  backendGetTruthRegistry: () => ipcInvoke("backendGetTruthRegistry"),
+  backendSeedInitialData: () => ipcInvoke("backendSeedInitialData"),
+  backendGetBootstrapStatus: () => ipcInvoke("backendGetBootstrapStatus"),
 } satisfies Window["electron"]);
 
 function ipcInvoke<Key extends keyof EventPayloadMapping>(
