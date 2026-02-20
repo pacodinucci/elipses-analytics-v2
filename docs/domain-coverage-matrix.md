@@ -11,20 +11,20 @@ Legend:
 |---|---|---|---|---|
 | `Proyecto` | Yes | `core-data` | `coreProyectoCreate`, `coreProyectoList` | Done |
 | `Unidades` | Yes | `core-data` | `coreUnidadesCreate`, `coreUnidadesListByProject` | Done |
-| `GrupoVariable` | Yes | - | - | Partial |
-| `Variable` | Yes | - | - | Partial |
+| `GrupoVariable` | Yes | `variables` | `grupoVariableCreate`, `grupoVariableList` | Done |
+| `Variable` | Yes | `variables` | `variableCreate`, `variableListByUnidades` | Done |
 | `Capa` | Yes | `core-data` | `coreCapaCreate`, `coreCapaListByProject` | Done |
 | `Pozo` | Yes | `core-data` | `corePozoCreate`, `corePozoListByProject` | Done |
 | `PozoCapa` | Yes | `core-data` | `corePozoCapaCreate`, `corePozoCapaListByProject` | Done |
 | `TipoSimulacion` | Yes | `simulations` | `simulationTypeCreate`, `simulationTypeList` | Done |
-| `TipoEstadoPozo` | Yes | - | - | Partial |
-| `SetEstadoPozos` | Yes | - | - | Partial |
-| `SetEstadoPozosDetalle` | Yes | - | - | Partial |
+| `TipoEstadoPozo` | Yes | `well-states` | `wellStateTypeCreate`, `wellStateTypeList` | Done |
+| `SetEstadoPozos` | Yes | `well-states` | `wellStateSetCreate`, `wellStateSetListByProject` | Done |
+| `SetEstadoPozosDetalle` | Yes | `well-states` | `wellStateSetDetailCreate`, `wellStateSetDetailList` | Done |
 | `TipoEscenario` | Yes | `scenarios` | `scenarioTypeCreate`, `scenarioTypeList` | Done |
 | `Escenario` | Yes | `scenarios` | `scenarioCreate`, `scenarioListByProject` | Done |
-| `ValorEscenario` | Yes | - | - | Partial |
-| `ElipseVariable` | Yes | - | - | Partial |
-| `ElipseValor` | Yes | - | - | Partial |
+| `ValorEscenario` | Yes | `scenario-values` | `scenarioValueCreate`, `scenarioValueListByEscenario` | Done |
+| `ElipseVariable` | Yes | `ellipse` | `ellipseVariableCreate`, `ellipseVariableList` | Done |
+| `ElipseValor` | Yes | `ellipse` | `ellipseValueCreate`, `ellipseValueListByProject` | Done |
 | `Simulacion` | Yes | `simulations` | `simulationCreate`, `simulationListByProject` | Done |
 | `Produccion` | Yes | `production` | `productionCreate`, `productionListByProject` | Done |
 | `VariableMapa` | Yes | `maps` (implicit FK support) | - | Partial |
@@ -33,4 +33,4 @@ Legend:
 ## Notes
 
 - Import pipeline (`imports`) currently covers map imports (`importMapsDryRun`, `importMapsCommit`) and tracks execution in `import_jobs` / `import_job_errors` (supporting tables, not part of the Mermaid domain list).
-- The next high-value coverage gaps are `ValorEscenario` and state-set entities (`SetEstadoPozos`, `SetEstadoPozosDetalle`, `TipoEstadoPozo`).
+- Remaining gap: `VariableMapa` still has implicit support through `maps` and has no dedicated IPC contract yet.
