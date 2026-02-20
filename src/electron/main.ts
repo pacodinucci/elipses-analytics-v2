@@ -1,6 +1,6 @@
-import { app, BrowserWindow, ipcMain } from "electron";
-import path from "path";
+import { app, BrowserWindow } from "electron";
 import { ipcMainHandle, isDev } from "./util.js";
+import { registerBackendIpcHandlers } from "./backend/ipc.js";
 import { getStaticData, pollResources } from "./resourceManager.js";
 import { getPreloadPath, getUIPath } from "./pathResolver.js";
 
@@ -21,4 +21,6 @@ app.on("ready", () => {
   ipcMainHandle("getStaticData", () => {
     return getStaticData();
   });
+
+  registerBackendIpcHandlers();
 });
