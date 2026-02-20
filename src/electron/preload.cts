@@ -24,6 +24,8 @@ electron.contextBridge.exposeInMainWorld("electron", {
   simulationListByProject: (payload) => electron.ipcRenderer.invoke("simulationListByProject", payload),
   importMapsDryRun: (payload) => electron.ipcRenderer.invoke("importMapsDryRun", payload),
   importMapsCommit: (payload) => electron.ipcRenderer.invoke("importMapsCommit", payload),
+  productionCreate: (payload) => electron.ipcRenderer.invoke("productionCreate", payload),
+  productionListByProject: (payload) => electron.ipcRenderer.invoke("productionListByProject", payload),
   coreUnidadesCreate: (payload) => electron.ipcRenderer.invoke("coreUnidadesCreate", payload),
   coreUnidadesListByProject: (payload) => electron.ipcRenderer.invoke("coreUnidadesListByProject", payload),
   coreProyectoCreate: (payload) => electron.ipcRenderer.invoke("coreProyectoCreate", payload),

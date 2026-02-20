@@ -26,11 +26,11 @@ Legend:
 | `ElipseVariable` | Yes | - | - | Partial |
 | `ElipseValor` | Yes | - | - | Partial |
 | `Simulacion` | Yes | `simulations` | `simulationCreate`, `simulationListByProject` | Done |
-| `Produccion` | Yes | - | - | Partial |
+| `Produccion` | Yes | `production` | `productionCreate`, `productionListByProject` | Done |
 | `VariableMapa` | Yes | `maps` (implicit FK support) | - | Partial |
 | `Mapa` | Yes | `maps` | `mapsGetByLayer`, `mapsUpsert`, `legacyVisualizerGetMap` | Done |
 
 ## Notes
 
 - Import pipeline (`imports`) currently covers map imports (`importMapsDryRun`, `importMapsCommit`) and tracks execution in `import_jobs` / `import_job_errors` (supporting tables, not part of the Mermaid domain list).
-- The next high-value coverage gaps are `Produccion`, `ValorEscenario`, and state-set entities (`SetEstadoPozos`, `SetEstadoPozosDetalle`, `TipoEstadoPozo`).
+- The next high-value coverage gaps are `ValorEscenario` and state-set entities (`SetEstadoPozos`, `SetEstadoPozosDetalle`, `TipoEstadoPozo`).
