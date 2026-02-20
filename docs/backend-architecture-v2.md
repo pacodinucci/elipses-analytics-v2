@@ -14,6 +14,7 @@ Define a backend architecture that:
 
 ## Confirmed migration context
 
+- Coverage tracking matrix (diagram table -> module/IPC): `docs/domain-coverage-matrix.md`.
 - Main functional change driver: add robust `Simulacion` + `Escenario` flows as first-class backend capabilities.
 - Main persistence change driver: move maps from legacy JSON file reads to relational storage in `Mapa`.
 - Constraint: keep frontend (especially visualizer) behavior compatible during transition.
