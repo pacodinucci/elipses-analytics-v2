@@ -33,6 +33,7 @@ type Capa = import("./src/electron/backend/models.js").Capa;
 type Pozo = import("./src/electron/backend/models.js").Pozo;
 type PozoCapa = import("./src/electron/backend/models.js").PozoCapa;
 type CreateProyectoInput = import("./src/electron/modules/core-data/domain/coreData.js").CreateProyectoInput;
+type CreateProyectoBootstrapInput = import("./src/electron/modules/core-data/domain/coreData.js").CreateProyectoBootstrapInput;
 type CreateUnidadesInput = import("./src/electron/modules/core-data/domain/coreData.js").CreateUnidadesInput;
 type CreateCapaInput = import("./src/electron/modules/core-data/domain/coreData.js").CreateCapaInput;
 type CreatePozoInput = import("./src/electron/modules/core-data/domain/coreData.js").CreatePozoInput;
@@ -98,6 +99,7 @@ type EventPayloadMapping = {
   variableMapaList: VariableMapa[];
   coreUnidadesCreate: Unidades;
   coreUnidadesListByProject: Unidades[];
+  coreProyectoInitialize: { proyecto: Proyecto; unidades: Unidades };
   coreProyectoCreate: Proyecto;
   coreProyectoList: Proyecto[];
   coreCapaCreate: Capa;
@@ -155,6 +157,7 @@ interface Window {
     variableMapaList: () => Promise<VariableMapa[]>;
     coreUnidadesCreate: (payload: CreateUnidadesInput) => Promise<Unidades>;
     coreUnidadesListByProject: (payload: { proyectoId: string }) => Promise<Unidades[]>;
+    coreProyectoInitialize: (payload: CreateProyectoBootstrapInput) => Promise<{ proyecto: Proyecto; unidades: Unidades }>;
     coreProyectoCreate: (payload: CreateProyectoInput) => Promise<Proyecto>;
     coreProyectoList: () => Promise<Proyecto[]>;
     coreCapaCreate: (payload: CreateCapaInput) => Promise<Capa>;

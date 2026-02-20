@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { Capa, Pozo, PozoCapa, Proyecto, Unidades } from "../../../backend/models.js";
 import { migrations } from "../../../shared/db/migrations.js";
 import { databaseService } from "../../../shared/db/index.js";
@@ -5,6 +6,7 @@ import type {
   CreateCapaInput,
   CreatePozoCapaInput,
   CreatePozoInput,
+  CreateProyectoBootstrapInput,
   CreateProyectoInput,
   CreateUnidadesInput,
 } from "../domain/coreData.js";
@@ -12,6 +14,7 @@ import {
   validateCreateCapaInput,
   validateCreatePozoCapaInput,
   validateCreatePozoInput,
+  validateCreateProyectoBootstrapInput,
   validateCreateProyectoInput,
   validateCreateUnidadesInput,
 } from "../domain/coreData.js";
@@ -34,6 +37,44 @@ export class CoreDataService {
 
     await this.ensureSchema();
     return this.repository.listUnidadesByProject(proyectoId);
+  }
+
+
+  async initializeProyecto(input: CreateProyectoBootstrapInput): Promise<{ proyecto: Proyecto; unidades: Unidades }> {
+    validateCreateProyectoBootstrapInput(input);
+    await this.ensureSchema();
+
+    const proyectoId = randomUUID();
+    const unidadesId = `${proyectoId}-units`;
+    const alias = input.nombre.trim().slice(0, 12).toUpperCase();
+    const grillaCellSizeX = (input.arealMaxX - input.arealMinX) / input.grillaNx;
+    const grillaCellSizeY = (input.arealMaxY - input.arealMinY) / input.grillaNy;
+
+    const proyecto = await this.repository.createProyecto({
+      id: proyectoId,
+      nombre: input.nombre,
+      alias,
+      limitesTemporalDesde: input.limitesTemporalDesde,
+      limitesTemporalHasta: input.limitesTemporalHasta,
+      arealMinX: input.arealMinX,
+      arealMinY: input.arealMinY,
+      arealMaxX: input.arealMaxX,
+      arealMaxY: input.arealMaxY,
+      arealCRS: input.arealCRS,
+      grillaNx: input.grillaNx,
+      grillaNy: input.grillaNy,
+      grillaCellSizeX,
+      grillaCellSizeY,
+      grillaUnidad: input.grillaUnidad,
+      unidadesId,
+    });
+
+    const unidades = await this.repository.createUnidades({
+      id: unidadesId,
+      proyectoId,
+    });
+
+    return { proyecto, unidades };
   }
 
   async createProyecto(input: CreateProyectoInput): Promise<Proyecto> {

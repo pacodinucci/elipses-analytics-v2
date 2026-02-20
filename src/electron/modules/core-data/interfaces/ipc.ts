@@ -5,6 +5,7 @@ import type {
   CreateCapaInput,
   CreatePozoCapaInput,
   CreatePozoInput,
+  CreateProyectoBootstrapInput,
   CreateProyectoInput,
   CreateUnidadesInput,
 } from "../domain/coreData.js";
@@ -28,6 +29,17 @@ export function registerCoreDataIpcHandlers() {
 
     validateEventFrame(frame);
     return coreDataService.listUnidadesByProject(payload.proyectoId);
+  });
+
+
+  ipcMain.handle("coreProyectoInitialize", async (event, payload: CreateProyectoBootstrapInput) => {
+    const frame = event.senderFrame;
+    if (!frame) {
+      throw new Error("Missing senderFrame");
+    }
+
+    validateEventFrame(frame);
+    return coreDataService.initializeProyecto(payload);
   });
 
   ipcMain.handle("coreProyectoCreate", async (event, payload: CreateProyectoInput) => {

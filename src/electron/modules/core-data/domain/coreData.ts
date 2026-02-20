@@ -17,6 +17,20 @@ export interface CreateProyectoInput {
   unidadesId: string;
 }
 
+export interface CreateProyectoBootstrapInput {
+  nombre: string;
+  limitesTemporalDesde: string;
+  limitesTemporalHasta: string;
+  arealMinX: number;
+  arealMinY: number;
+  arealMaxX: number;
+  arealMaxY: number;
+  arealCRS: string;
+  grillaNx: number;
+  grillaNy: number;
+  grillaUnidad: string;
+}
+
 export interface CreateUnidadesInput {
   id: string;
   proyectoId: string;
@@ -75,6 +89,33 @@ export function validateCreateProyectoInput(input: CreateProyectoInput): void {
   requireFiniteNumber(input.grillaNy, "grillaNy");
   requireFiniteNumber(input.grillaCellSizeX, "grillaCellSizeX");
   requireFiniteNumber(input.grillaCellSizeY, "grillaCellSizeY");
+}
+
+export function validateCreateProyectoBootstrapInput(input: CreateProyectoBootstrapInput): void {
+  requireString(input.nombre, "nombre");
+  requireString(input.limitesTemporalDesde, "limitesTemporalDesde");
+  requireString(input.limitesTemporalHasta, "limitesTemporalHasta");
+  requireString(input.arealCRS, "arealCRS");
+  requireString(input.grillaUnidad, "grillaUnidad");
+
+  requireFiniteNumber(input.arealMinX, "arealMinX");
+  requireFiniteNumber(input.arealMinY, "arealMinY");
+  requireFiniteNumber(input.arealMaxX, "arealMaxX");
+  requireFiniteNumber(input.arealMaxY, "arealMaxY");
+  requireFiniteNumber(input.grillaNx, "grillaNx");
+  requireFiniteNumber(input.grillaNy, "grillaNy");
+
+  if (input.arealMaxX <= input.arealMinX) {
+    throw new Error("arealMaxX must be greater than arealMinX");
+  }
+
+  if (input.arealMaxY <= input.arealMinY) {
+    throw new Error("arealMaxY must be greater than arealMinY");
+  }
+
+  if (input.grillaNx <= 0 || input.grillaNy <= 0) {
+    throw new Error("grid dimensions must be greater than zero");
+  }
 }
 
 export function validateCreateUnidadesInput(input: CreateUnidadesInput): void {
