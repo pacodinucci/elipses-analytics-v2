@@ -25,6 +25,16 @@ type TipoSimulacion = import("./src/electron/backend/models.js").TipoSimulacion;
 type LegacyVisualizerMapResponse = import("./src/electron/modules/maps/interfaces/legacyAdapter.js").LegacyVisualizerMapResponse;
 type MapImportPayload = import("./src/electron/modules/imports/domain/importJob.js").MapImportPayload;
 type ImportJobResult = import("./src/electron/modules/imports/domain/importJob.js").ImportJobResult;
+type Proyecto = import("./src/electron/backend/models.js").Proyecto;
+type Unidades = import("./src/electron/backend/models.js").Unidades;
+type Capa = import("./src/electron/backend/models.js").Capa;
+type Pozo = import("./src/electron/backend/models.js").Pozo;
+type PozoCapa = import("./src/electron/backend/models.js").PozoCapa;
+type CreateProyectoInput = import("./src/electron/modules/core-data/domain/coreData.js").CreateProyectoInput;
+type CreateUnidadesInput = import("./src/electron/modules/core-data/domain/coreData.js").CreateUnidadesInput;
+type CreateCapaInput = import("./src/electron/modules/core-data/domain/coreData.js").CreateCapaInput;
+type CreatePozoInput = import("./src/electron/modules/core-data/domain/coreData.js").CreatePozoInput;
+type CreatePozoCapaInput = import("./src/electron/modules/core-data/domain/coreData.js").CreatePozoCapaInput;
 
 type EventPayloadMapping = {
   statistics: Statistics;
@@ -46,6 +56,16 @@ type EventPayloadMapping = {
   simulationListByProject: Simulacion[];
   importMapsDryRun: ImportJobResult;
   importMapsCommit: ImportJobResult;
+  coreUnidadesCreate: Unidades;
+  coreUnidadesListByProject: Unidades[];
+  coreProyectoCreate: Proyecto;
+  coreProyectoList: Proyecto[];
+  coreCapaCreate: Capa;
+  coreCapaListByProject: Capa[];
+  corePozoCreate: Pozo;
+  corePozoListByProject: Pozo[];
+  corePozoCapaCreate: PozoCapa;
+  corePozoCapaListByProject: PozoCapa[];
 };
 
 type UnsuscribeFunction = () => void;
@@ -73,5 +93,15 @@ interface Window {
     simulationListByProject: (payload: { proyectoId: string }) => Promise<Simulacion[]>;
     importMapsDryRun: (payload: MapImportPayload) => Promise<ImportJobResult>;
     importMapsCommit: (payload: MapImportPayload) => Promise<ImportJobResult>;
+    coreUnidadesCreate: (payload: CreateUnidadesInput) => Promise<Unidades>;
+    coreUnidadesListByProject: (payload: { proyectoId: string }) => Promise<Unidades[]>;
+    coreProyectoCreate: (payload: CreateProyectoInput) => Promise<Proyecto>;
+    coreProyectoList: () => Promise<Proyecto[]>;
+    coreCapaCreate: (payload: CreateCapaInput) => Promise<Capa>;
+    coreCapaListByProject: (payload: { proyectoId: string }) => Promise<Capa[]>;
+    corePozoCreate: (payload: CreatePozoInput) => Promise<Pozo>;
+    corePozoListByProject: (payload: { proyectoId: string }) => Promise<Pozo[]>;
+    corePozoCapaCreate: (payload: CreatePozoCapaInput) => Promise<PozoCapa>;
+    corePozoCapaListByProject: (payload: { proyectoId: string }) => Promise<PozoCapa[]>;
   };
 }

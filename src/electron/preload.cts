@@ -24,6 +24,16 @@ electron.contextBridge.exposeInMainWorld("electron", {
   simulationListByProject: (payload) => electron.ipcRenderer.invoke("simulationListByProject", payload),
   importMapsDryRun: (payload) => electron.ipcRenderer.invoke("importMapsDryRun", payload),
   importMapsCommit: (payload) => electron.ipcRenderer.invoke("importMapsCommit", payload),
+  coreUnidadesCreate: (payload) => electron.ipcRenderer.invoke("coreUnidadesCreate", payload),
+  coreUnidadesListByProject: (payload) => electron.ipcRenderer.invoke("coreUnidadesListByProject", payload),
+  coreProyectoCreate: (payload) => electron.ipcRenderer.invoke("coreProyectoCreate", payload),
+  coreProyectoList: () => electron.ipcRenderer.invoke("coreProyectoList"),
+  coreCapaCreate: (payload) => electron.ipcRenderer.invoke("coreCapaCreate", payload),
+  coreCapaListByProject: (payload) => electron.ipcRenderer.invoke("coreCapaListByProject", payload),
+  corePozoCreate: (payload) => electron.ipcRenderer.invoke("corePozoCreate", payload),
+  corePozoListByProject: (payload) => electron.ipcRenderer.invoke("corePozoListByProject", payload),
+  corePozoCapaCreate: (payload) => electron.ipcRenderer.invoke("corePozoCapaCreate", payload),
+  corePozoCapaListByProject: (payload) => electron.ipcRenderer.invoke("corePozoCapaListByProject", payload),
 } satisfies Window["electron"]);
 
 function ipcInvoke<Key extends keyof EventPayloadMapping>(
