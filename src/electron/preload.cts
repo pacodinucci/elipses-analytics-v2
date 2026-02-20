@@ -13,6 +13,7 @@ electron.contextBridge.exposeInMainWorld("electron", {
   backendGetBootstrapStatus: () => ipcInvoke("backendGetBootstrapStatus"),
   mapsGetByLayer: (params) => electron.ipcRenderer.invoke("mapsGetByLayer", params),
   mapsUpsert: (payload) => electron.ipcRenderer.invoke("mapsUpsert", payload),
+  legacyVisualizerGetMap: (params) => electron.ipcRenderer.invoke("legacyVisualizerGetMap", params),
   scenarioTypeCreate: (payload) => electron.ipcRenderer.invoke("scenarioTypeCreate", payload),
   scenarioTypeList: () => electron.ipcRenderer.invoke("scenarioTypeList"),
   scenarioCreate: (payload) => electron.ipcRenderer.invoke("scenarioCreate", payload),

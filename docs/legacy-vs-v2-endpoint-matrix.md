@@ -1,21 +1,24 @@
-# Legacy -> v2 endpoint matrix (starter)
+# Legacy -> v2 endpoint matrix
 
 Use this matrix to preserve frontend compatibility while backend internals evolve.
 
-## Important sequencing note
+## Implemented compatibility adapters (current)
 
-This matrix is defined early, but implementation depends on Phase 0/Phase 1 backend bootstrap (schema, migrations, and core persistence APIs) before visualizer adapters are finalized.
-
-| Priority | Legacy flow | Legacy endpoint | v2 endpoint | Request diff | Response diff | Compatibility strategy | Owner | Status |
+| Priority | Legacy flow | Legacy endpoint/channel | v2 endpoint/channel | Request diff | Response diff | Compatibility strategy | Owner | Status |
 |---|---|---|---|---|---|---|---|---|
-| P0 | Visualizer map load | TBD | TBD | TBD | TBD | Adapter + contract test | TBD | Pending |
-| P0 | Visualizer overlays | TBD | TBD | TBD | TBD | Adapter + contract test | TBD | Pending |
-| P0 | Production time-series | TBD | TBD | TBD | TBD | Backward-compatible response fields | TBD | Pending |
-| P1 | Scenario value query | TBD | TBD | TBD | TBD | New v2 route + legacy alias | TBD | Pending |
-| P1 | Simulation run/status | N/A (or legacy custom) | TBD | New | New | Introduce canonical v2 + optional compatibility facade | TBD | Pending |
+| P0 | Visualizer map load | `legacyVisualizerGetMap({ capaId, variableMapaId? })` | `mapsGetByLayer({ capaId, variableMapaId? })` | Same fields | Legacy strips extra v2 fields (`id`, `proyectoId`, timestamps) and preserves `xedges`, `yedges`, `grid` | Legacy adapter in IPC layer (`legacyAdapter.ts`) | backend | Implemented |
+
+## Pending compatibility rows
+
+| Priority | Legacy flow | Legacy endpoint/channel | v2 endpoint/channel | Request diff | Response diff | Compatibility strategy | Owner | Status |
+|---|---|---|---|---|---|---|---|---|
+| P0 | Visualizer overlays | TBD | TBD | TBD | TBD | Adapter + contract test | backend | Pending |
+| P0 | Production time-series | TBD | TBD | TBD | TBD | Backward-compatible response fields | backend | Pending |
+| P1 | Scenario value query | TBD | scenario module handlers | TBD | TBD | New v2 route + legacy alias | backend | Pending |
+| P1 | Simulation run/status | TBD | simulation module handlers | New | New | Canonical v2 + optional compatibility facade | backend | Pending |
 
 ## Completion criteria
 
-- Every P0 row has an owner and mapped endpoints.
-- Every non-identical response has an explicit adapter/mapping strategy.
-- Every P0 row has a contract test case reference.
+- Every P0 row has a concrete legacy channel and mapped v2 channel.
+- Every non-identical response has explicit adapter strategy.
+- Every P0 row has contract test coverage.
