@@ -17,6 +17,7 @@ type EventPayloadMapping = {
   statistics: Statistics;
   getStaticData: StaticData;
   backendGetTruthRegistry: BackendTruthRegistry;
+  backendInitSchema: BackendBootstrapStatus;
   backendSeedInitialData: BackendBootstrapStatus;
   backendGetBootstrapStatus: BackendBootstrapStatus;
 };
@@ -30,6 +31,7 @@ interface Window {
     ) => UnsuscribeFunction;
     getStaticData: () => Promise<StaticData>;
     backendGetTruthRegistry: () => Promise<BackendTruthRegistry>;
+    backendInitSchema: () => Promise<BackendBootstrapStatus>;
     backendSeedInitialData: () => Promise<BackendBootstrapStatus>;
     backendGetBootstrapStatus: () => Promise<BackendBootstrapStatus>;
   };

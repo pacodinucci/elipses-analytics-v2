@@ -190,5 +190,7 @@ export interface BackendTruthRegistry {
 
 export interface BackendBootstrapStatus {
   seeded: boolean;
+  schemaInitialized: boolean;
+  databasePath: string;
   entityCounts: Record<string, number>;
 }
