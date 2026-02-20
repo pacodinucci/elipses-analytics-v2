@@ -42,6 +42,8 @@ electron.contextBridge.exposeInMainWorld("electron", {
   ellipseVariableList: () => electron.ipcRenderer.invoke("ellipseVariableList"),
   ellipseValueCreate: (payload) => electron.ipcRenderer.invoke("ellipseValueCreate", payload),
   ellipseValueListByProject: (payload) => electron.ipcRenderer.invoke("ellipseValueListByProject", payload),
+  variableMapaCreate: (payload) => electron.ipcRenderer.invoke("variableMapaCreate", payload),
+  variableMapaList: () => electron.ipcRenderer.invoke("variableMapaList"),
   coreUnidadesCreate: (payload) => electron.ipcRenderer.invoke("coreUnidadesCreate", payload),
   coreUnidadesListByProject: (payload) => electron.ipcRenderer.invoke("coreUnidadesListByProject", payload),
   coreProyectoCreate: (payload) => electron.ipcRenderer.invoke("coreProyectoCreate", payload),

@@ -45,6 +45,7 @@ type GrupoVariable = import("./src/electron/backend/models.js").GrupoVariable;
 type Variable = import("./src/electron/backend/models.js").Variable;
 type ElipseVariable = import("./src/electron/backend/models.js").ElipseVariable;
 type ElipseValor = import("./src/electron/backend/models.js").ElipseValor;
+type VariableMapa = import("./src/electron/backend/models.js").VariableMapa;
 type CreateValorEscenarioInput = import("./src/electron/modules/scenario-values/domain/scenarioValue.js").CreateValorEscenarioInput;
 type CreateTipoEstadoPozoInput = import("./src/electron/modules/well-states/domain/wellStates.js").CreateTipoEstadoPozoInput;
 type CreateSetEstadoPozosInput = import("./src/electron/modules/well-states/domain/wellStates.js").CreateSetEstadoPozosInput;
@@ -53,6 +54,7 @@ type CreateGrupoVariableInput = import("./src/electron/modules/variables/domain/
 type CreateVariableInput = import("./src/electron/modules/variables/domain/variables.js").CreateVariableInput;
 type CreateElipseVariableInput = import("./src/electron/modules/ellipse/domain/ellipse.js").CreateElipseVariableInput;
 type CreateElipseValorInput = import("./src/electron/modules/ellipse/domain/ellipse.js").CreateElipseValorInput;
+type CreateVariableMapaInput = import("./src/electron/modules/variable-mapa/domain/variableMapa.js").CreateVariableMapaInput;
 
 type EventPayloadMapping = {
   statistics: Statistics;
@@ -92,6 +94,8 @@ type EventPayloadMapping = {
   ellipseVariableList: ElipseVariable[];
   ellipseValueCreate: ElipseValor;
   ellipseValueListByProject: ElipseValor[];
+  variableMapaCreate: VariableMapa;
+  variableMapaList: VariableMapa[];
   coreUnidadesCreate: Unidades;
   coreUnidadesListByProject: Unidades[];
   coreProyectoCreate: Proyecto;
@@ -147,6 +151,8 @@ interface Window {
     ellipseVariableList: () => Promise<ElipseVariable[]>;
     ellipseValueCreate: (payload: CreateElipseValorInput) => Promise<ElipseValor>;
     ellipseValueListByProject: (payload: { proyectoId: string }) => Promise<ElipseValor[]>;
+    variableMapaCreate: (payload: CreateVariableMapaInput) => Promise<VariableMapa>;
+    variableMapaList: () => Promise<VariableMapa[]>;
     coreUnidadesCreate: (payload: CreateUnidadesInput) => Promise<Unidades>;
     coreUnidadesListByProject: (payload: { proyectoId: string }) => Promise<Unidades[]>;
     coreProyectoCreate: (payload: CreateProyectoInput) => Promise<Proyecto>;

@@ -27,10 +27,10 @@ Legend:
 | `ElipseValor` | Yes | `ellipse` | `ellipseValueCreate`, `ellipseValueListByProject` | Done |
 | `Simulacion` | Yes | `simulations` | `simulationCreate`, `simulationListByProject` | Done |
 | `Produccion` | Yes | `production` | `productionCreate`, `productionListByProject` | Done |
-| `VariableMapa` | Yes | `maps` (implicit FK support) | - | Partial |
+| `VariableMapa` | Yes | `variable-mapa` | `variableMapaCreate`, `variableMapaList` | Done |
 | `Mapa` | Yes | `maps` | `mapsGetByLayer`, `mapsUpsert`, `legacyVisualizerGetMap` | Done |
 
 ## Notes
 
 - Import pipeline (`imports`) currently covers map imports (`importMapsDryRun`, `importMapsCommit`) and tracks execution in `import_jobs` / `import_job_errors` (supporting tables, not part of the Mermaid domain list).
-- Remaining gap: `VariableMapa` still has implicit support through `maps` and has no dedicated IPC contract yet.
+- Current domain matrix status: all Mermaid tables are implemented with module + IPC coverage.
