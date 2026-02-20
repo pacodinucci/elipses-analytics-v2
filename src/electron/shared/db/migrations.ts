@@ -170,10 +170,37 @@ const initialSchemaStatements = [
   )`,
 ];
 
+
+const importPipelineStatements = [
+  `CREATE TABLE IF NOT EXISTS import_jobs (
+    id VARCHAR PRIMARY KEY,
+    entity VARCHAR NOT NULL,
+    mode VARCHAR NOT NULL,
+    status VARCHAR NOT NULL,
+    createdAt TIMESTAMP NOT NULL,
+    finishedAt TIMESTAMP,
+    summaryJson JSON NOT NULL
+  )`,
+  `CREATE TABLE IF NOT EXISTS import_job_errors (
+    id VARCHAR PRIMARY KEY,
+    jobId VARCHAR NOT NULL REFERENCES import_jobs(id),
+    rowNumber INTEGER NOT NULL,
+    field VARCHAR,
+    severity VARCHAR NOT NULL,
+    message VARCHAR NOT NULL,
+    createdAt TIMESTAMP NOT NULL
+  )`,
+];
+
 export const migrations: Migration[] = [
   {
     version: 1,
     name: "initial_domain_schema",
     statements: initialSchemaStatements,
+  },
+  {
+    version: 2,
+    name: "import_pipeline_schema",
+    statements: importPipelineStatements,
   },
 ];

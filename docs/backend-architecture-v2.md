@@ -100,6 +100,14 @@ Each module should include:
 
 ## Import pipeline architecture
 
+### Current implementation status (v2 bootstrap)
+
+- Implemented first import vertical for `Mapa` with two backend operations:
+  - `importMapsDryRun(payload)`
+  - `importMapsCommit(payload)`
+- Both operations persist import jobs and row-level errors in DB tables (`import_jobs`, `import_job_errors`).
+- This provides traceability and a safe dry-run path before write execution.
+
 For high-volume entities (`Produccion`, `ValorEscenario`, `Mapa`):
 
 1. Upload file (CSV/XLSX/JSON).

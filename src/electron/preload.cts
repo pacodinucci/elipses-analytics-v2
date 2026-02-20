@@ -22,6 +22,8 @@ electron.contextBridge.exposeInMainWorld("electron", {
   simulationTypeList: () => electron.ipcRenderer.invoke("simulationTypeList"),
   simulationCreate: (payload) => electron.ipcRenderer.invoke("simulationCreate", payload),
   simulationListByProject: (payload) => electron.ipcRenderer.invoke("simulationListByProject", payload),
+  importMapsDryRun: (payload) => electron.ipcRenderer.invoke("importMapsDryRun", payload),
+  importMapsCommit: (payload) => electron.ipcRenderer.invoke("importMapsCommit", payload),
 } satisfies Window["electron"]);
 
 function ipcInvoke<Key extends keyof EventPayloadMapping>(

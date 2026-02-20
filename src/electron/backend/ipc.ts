@@ -1,3 +1,4 @@
+import { registerImportIpcHandlers } from "../modules/imports/interfaces/ipc.js";
 import { registerScenarioIpcHandlers } from "../modules/scenarios/interfaces/ipc.js";
 import { registerSimulationIpcHandlers } from "../modules/simulations/interfaces/ipc.js";
 import { registerMapIpcHandlers } from "../modules/maps/interfaces/ipc.js";
@@ -8,6 +9,7 @@ export function registerBackendIpcHandlers() {
   registerMapIpcHandlers();
   registerScenarioIpcHandlers();
   registerSimulationIpcHandlers();
+  registerImportIpcHandlers();
   ipcMainHandle("backendGetTruthRegistry", () => backendStore.getTruthRegistry());
   ipcMainHandle("backendInitSchema", () => backendStore.initSchema());
   ipcMainHandle("backendSeedInitialData", () => backendStore.seedInitialData());

@@ -23,6 +23,8 @@ type TipoEscenario = import("./src/electron/backend/models.js").TipoEscenario;
 type Simulacion = import("./src/electron/backend/models.js").Simulacion;
 type TipoSimulacion = import("./src/electron/backend/models.js").TipoSimulacion;
 type LegacyVisualizerMapResponse = import("./src/electron/modules/maps/interfaces/legacyAdapter.js").LegacyVisualizerMapResponse;
+type MapImportPayload = import("./src/electron/modules/imports/domain/importJob.js").MapImportPayload;
+type ImportJobResult = import("./src/electron/modules/imports/domain/importJob.js").ImportJobResult;
 
 type EventPayloadMapping = {
   statistics: Statistics;
@@ -42,6 +44,8 @@ type EventPayloadMapping = {
   simulationTypeList: TipoSimulacion[];
   simulationCreate: Simulacion;
   simulationListByProject: Simulacion[];
+  importMapsDryRun: ImportJobResult;
+  importMapsCommit: ImportJobResult;
 };
 
 type UnsuscribeFunction = () => void;
@@ -67,5 +71,7 @@ interface Window {
     simulationTypeList: () => Promise<TipoSimulacion[]>;
     simulationCreate: (payload: CreateSimulacionInput) => Promise<Simulacion>;
     simulationListByProject: (payload: { proyectoId: string }) => Promise<Simulacion[]>;
+    importMapsDryRun: (payload: MapImportPayload) => Promise<ImportJobResult>;
+    importMapsCommit: (payload: MapImportPayload) => Promise<ImportJobResult>;
   };
 }
