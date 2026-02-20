@@ -10,15 +10,8 @@ type StaticData = {
   totalMemoryGB: number;
 };
 
-type BackendTruthRegistry = {
-  entities: string[];
-  notes: string[];
-};
-
-type BackendBootstrapStatus = {
-  seeded: boolean;
-  entityCounts: Record<string, number>;
-};
+type BackendTruthRegistry = import("./src/electron/backend/models.js").BackendTruthRegistry;
+type BackendBootstrapStatus = import("./src/electron/backend/models.js").BackendBootstrapStatus;
 
 type EventPayloadMapping = {
   statistics: Statistics;
