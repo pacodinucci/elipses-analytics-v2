@@ -171,6 +171,21 @@ const initialSchemaStatements = [
 ];
 
 
+
+
+const relationalHardeningStatements = [
+  // Proyecto <-> Unidades expected as 1:1 in the domain: one Unidades row per Proyecto.
+  `CREATE UNIQUE INDEX IF NOT EXISTS ux_unidades_proyectoId ON Unidades(proyectoId)`,
+  // Prevent duplicated layer assignment rows for the same pozo/capa inside one proyecto.
+  `CREATE UNIQUE INDEX IF NOT EXISTS ux_pozocapa_project_pozo_capa ON PozoCapa(proyectoId, pozoId, capaId)`,
+  // Prevent duplicated daily production rows for same project/pozo/capa/date tuple.
+  `CREATE UNIQUE INDEX IF NOT EXISTS ux_produccion_project_pozo_capa_fecha ON Produccion(proyectoId, pozoId, capaId, fecha)`,
+  // Prevent duplicated scenario values for the same scenario/pozo/capa/date tuple.
+  `CREATE UNIQUE INDEX IF NOT EXISTS ux_valorescenario_escenario_pozo_capa_fecha ON ValorEscenario(escenarioId, pozoId, capaId, fecha)`,
+  // Prevent duplicated state entries per set + pozo.
+  `CREATE UNIQUE INDEX IF NOT EXISTS ux_setestadopozosdetalle_set_pozo ON SetEstadoPozosDetalle(setEstadoPozosId, pozoId)`,
+];
+
 const importPipelineStatements = [
   `CREATE TABLE IF NOT EXISTS import_jobs (
     id VARCHAR PRIMARY KEY,
@@ -202,5 +217,10 @@ export const migrations: Migration[] = [
     version: 2,
     name: "import_pipeline_schema",
     statements: importPipelineStatements,
+  },
+  {
+    version: 3,
+    name: "relational_hardening_indexes",
+    statements: relationalHardeningStatements,
   },
 ];
