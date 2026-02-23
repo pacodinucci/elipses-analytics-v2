@@ -21,6 +21,11 @@ export interface MapImportPayload {
   rows: MapImportRow[];
 }
 
+export interface CapaTxtImportPayload {
+  proyectoId: string;
+  content: string;
+}
+
 export interface ImportJobSummary {
   totalRows: number;
   acceptedRows: number;
@@ -31,7 +36,7 @@ export interface ImportJobSummary {
 
 export interface ImportJobResult {
   jobId: string;
-  entity: "Mapa";
+  entity: "Mapa" | "Capa";
   mode: "dry-run" | "commit";
   status: "completed" | "failed";
   summary: ImportJobSummary;
@@ -41,5 +46,15 @@ export interface ImportJobResult {
 export function validateMapImportPayload(payload: MapImportPayload): void {
   if (!payload.rows || !Array.isArray(payload.rows) || payload.rows.length === 0) {
     throw new Error("Map import requires at least one row");
+  }
+}
+
+export function validateCapaTxtImportPayload(payload: CapaTxtImportPayload): void {
+  if (!payload.proyectoId?.trim()) {
+    throw new Error("Layer import requires proyectoId");
+  }
+
+  if (!payload.content?.trim()) {
+    throw new Error("Layer import requires TXT content");
   }
 }

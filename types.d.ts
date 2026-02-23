@@ -24,6 +24,7 @@ type Simulacion = import("./src/electron/backend/models.js").Simulacion;
 type TipoSimulacion = import("./src/electron/backend/models.js").TipoSimulacion;
 type LegacyVisualizerMapResponse = import("./src/electron/modules/maps/interfaces/legacyAdapter.js").LegacyVisualizerMapResponse;
 type MapImportPayload = import("./src/electron/modules/imports/domain/importJob.js").MapImportPayload;
+type CapaTxtImportPayload = import("./src/electron/modules/imports/domain/importJob.js").CapaTxtImportPayload;
 type ImportJobResult = import("./src/electron/modules/imports/domain/importJob.js").ImportJobResult;
 type Produccion = import("./src/electron/backend/models.js").Produccion;
 type CreateProduccionInput = import("./src/electron/modules/production/domain/production.js").CreateProduccionInput;
@@ -77,6 +78,8 @@ type EventPayloadMapping = {
   simulationListByProject: Simulacion[];
   importMapsDryRun: ImportJobResult;
   importMapsCommit: ImportJobResult;
+  importCapasDryRun: ImportJobResult;
+  importCapasCommit: ImportJobResult;
   productionCreate: Produccion;
   productionListByProject: Produccion[];
   scenarioValueCreate: ValorEscenario;
@@ -135,6 +138,8 @@ interface Window {
     simulationListByProject: (payload: { proyectoId: string }) => Promise<Simulacion[]>;
     importMapsDryRun: (payload: MapImportPayload) => Promise<ImportJobResult>;
     importMapsCommit: (payload: MapImportPayload) => Promise<ImportJobResult>;
+    importCapasDryRun: (payload: CapaTxtImportPayload) => Promise<ImportJobResult>;
+    importCapasCommit: (payload: CapaTxtImportPayload) => Promise<ImportJobResult>;
     productionCreate: (payload: CreateProduccionInput) => Promise<Produccion>;
     productionListByProject: (payload: { proyectoId: string }) => Promise<Produccion[]>;
     scenarioValueCreate: (payload: CreateValorEscenarioInput) => Promise<ValorEscenario>;
