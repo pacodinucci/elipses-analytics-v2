@@ -9,13 +9,13 @@ export class MapService {
   private readonly repository = new MapRepository();
   private schemaReady = false;
 
-  async getMapByLayer(capaId: string, variableMapaId?: string): Promise<Mapa | null> {
+  async getMapByLayer(capaId: string): Promise<Mapa | null> {
     if (!capaId) {
       throw new Error("capaId is required");
     }
 
     await this.ensureSchema();
-    return this.repository.getByLayer(capaId, variableMapaId);
+    return this.repository.getByLayer(capaId);
   }
 
   async upsertMap(input: UpsertMapInput): Promise<Mapa> {

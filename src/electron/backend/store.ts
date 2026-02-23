@@ -25,6 +25,7 @@ const ENTITY_TABLES = [
   "ElipseValor",
   "Simulacion",
   "Produccion",
+  // ⚠️ legacy: se elimina en cleanup final
   "VariableMapa",
   "Mapa",
 ] as const;
@@ -40,6 +41,7 @@ class BackendStore {
         "Mermaid class diagram is treated as source of truth.",
         "Schema is managed through versioned migrations in src/electron/shared/db/migrations.ts.",
         "Bootstrap creates physical tables in DuckDB (backend-v2.duckdb).",
+        "Note: some legacy columns/tables may exist temporarily during migrations (e.g., VariableMapa, Simulacion.setEstadoPozosId).",
       ],
     };
   }
@@ -61,6 +63,9 @@ class BackendStore {
     const createdAt = nowISO();
     const updatedAt = createdAt;
 
+    // ---------------------------
+    // Proyecto + Unidades
+    // ---------------------------
     await this.db.run(
       `INSERT INTO Proyecto (
         id, nombre, alias, limitesTemporalDesde, limitesTemporalHasta,
@@ -87,14 +92,17 @@ class BackendStore {
         "units-demo",
         createdAt,
         updatedAt,
-      ]
+      ],
     );
 
     await this.db.run(
       "INSERT INTO Unidades (id, proyectoId, createdAt, updatedAt) VALUES (?, ?, ?, ?)",
-      ["units-demo", "proj-demo", createdAt, updatedAt]
+      ["units-demo", "proj-demo", createdAt, updatedAt],
     );
 
+    // ---------------------------
+    // Tipos base
+    // ---------------------------
     await this.db.run("INSERT INTO TipoEscenario (id, nombre) VALUES (?, ?)", [
       "tipo-esc-base",
       "Base",
@@ -110,31 +118,55 @@ class BackendStore {
       "Productor",
     ]);
 
+    // ---------------------------
+    // Capa + Pozo
+    // ---------------------------
     await this.db.run(
       "INSERT INTO Capa (id, proyectoId, nombre, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)",
-      ["capa-a", "proj-demo", "Capa A", createdAt, updatedAt]
+      ["capa-a", "proj-demo", "Capa A", createdAt, updatedAt],
     );
 
     await this.db.run(
       "INSERT INTO Pozo (id, proyectoId, nombre, x, y, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      ["pozo-a", "proj-demo", "Pozo A", 10, 20, createdAt, updatedAt]
+      ["pozo-a", "proj-demo", "Pozo A", 10, 20, createdAt, updatedAt],
     );
 
-    await this.db.run(
-      "INSERT INTO SetEstadoPozos (id, proyectoId, nombre, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)",
-      ["set-estados-base", "proj-demo", "Set Base", createdAt, updatedAt]
-    );
-
-    await this.db.run(
-      `INSERT INTO SetEstadoPozosDetalle (
-        id, setEstadoPozosId, pozoId, tipoEstadoPozoId, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?)`,
-      ["set-det-1", "set-estados-base", "pozo-a", "estado-productor", createdAt, updatedAt]
-    );
-
+    // ---------------------------
+    // Escenario base
+    // ---------------------------
     await this.db.run(
       "INSERT INTO Escenario (id, proyectoId, tipoEscenarioId, nombre, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)",
-      ["esc-base", "proj-demo", "tipo-esc-base", "Escenario Base", createdAt, updatedAt]
+      [
+        "esc-base",
+        "proj-demo",
+        "tipo-esc-base",
+        "Escenario Base",
+        createdAt,
+        updatedAt,
+      ],
+    );
+
+    /**
+     * ---------------------------
+     * Simulación + SetEstadoPozos (compat)
+     * ---------------------------
+     *
+     * Dominio nuevo:
+     * - Simulacion NO requiere setEstadoPozosId
+     * - SetEstadoPozos requiere simulacionId y NO tiene proyectoId
+     *
+     * Pero el schema v1 todavía tiene:
+     * - Simulacion.setEstadoPozosId NOT NULL
+     * - SetEstadoPozos.proyectoId NOT NULL
+     *
+     * Entonces, para seed en esquema transicional:
+     * 1) crear SetEstadoPozos con proyectoId (legacy)
+     * 2) crear Simulacion apuntando a setEstadoPozosId (legacy)
+     * 3) actualizar SetEstadoPozos.simulacionId (columna v4) con el id de la simulación
+     */
+    await this.db.run(
+      "INSERT INTO SetEstadoPozos (id, proyectoId, nombre, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)",
+      ["set-estados-base", "proj-demo", "Set Base", createdAt, updatedAt],
     );
 
     await this.db.run(
@@ -149,12 +181,50 @@ class BackendStore {
         "set-estados-base",
         createdAt,
         updatedAt,
-      ]
+      ],
     );
 
+    // v4: SetEstadoPozos.simulacionId (si existe) -> lo seteamos
+    await this.db.run(
+      "UPDATE SetEstadoPozos SET simulacionId = ? WHERE id = ?",
+      ["sim-base", "set-estados-base"],
+    );
+
+    await this.db.run(
+      `INSERT INTO SetEstadoPozosDetalle (
+        id, setEstadoPozosId, pozoId, tipoEstadoPozoId, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?)`,
+      [
+        "set-det-1",
+        "set-estados-base",
+        "pozo-a",
+        "estado-productor",
+        createdAt,
+        updatedAt,
+      ],
+    );
+
+    // ---------------------------
+    // GrupoVariable para map (nuevo dominio)
+    // ---------------------------
+    await this.db.run(
+      "INSERT INTO GrupoVariable (id, nombre, orden) VALUES (?, ?, ?)",
+      ["grp-mapa-base", "Mapa Base", 0],
+    );
+
+    /**
+     * Mapa (compat):
+     * - schema v1 exige variableMapaId NOT NULL
+     * - dominio nuevo usa grupoVariableId (columna v4)
+     *
+     * Entonces:
+     * 1) creamos VariableMapa legacy solo para satisfacer v1
+     * 2) insert Mapa con variableMapaId legacy
+     * 3) seteamos grupoVariableId (v4)
+     */
     await this.db.run("INSERT INTO VariableMapa (id, nombre) VALUES (?, ?)", [
-      "var-mapa-1",
-      "Presion",
+      "var-mapa-legacy",
+      "LEGACY",
     ]);
 
     await this.db.run(
@@ -165,7 +235,7 @@ class BackendStore {
         "mapa-capa-a",
         "proj-demo",
         "capa-a",
-        "var-mapa-1",
+        "var-mapa-legacy",
         JSON.stringify([0, 10, 20]),
         JSON.stringify([0, 10, 20]),
         JSON.stringify([
@@ -174,8 +244,14 @@ class BackendStore {
         ]),
         createdAt,
         updatedAt,
-      ]
+      ],
     );
+
+    // v4: Mapa.grupoVariableId (si existe) -> lo seteamos
+    await this.db.run("UPDATE Mapa SET grupoVariableId = ? WHERE capaId = ?", [
+      "grp-mapa-base",
+      "capa-a",
+    ]);
 
     return this.getBootstrapStatus();
   }
@@ -183,8 +259,11 @@ class BackendStore {
   async getBootstrapStatus(): Promise<BackendBootstrapStatus> {
     const entityCounts = Object.fromEntries(
       await Promise.all(
-        ENTITY_TABLES.map(async (tableName) => [tableName, await this.safeCount(tableName)])
-      )
+        ENTITY_TABLES.map(async (tableName) => [
+          tableName,
+          await this.safeCount(tableName),
+        ]),
+      ),
     );
 
     return {

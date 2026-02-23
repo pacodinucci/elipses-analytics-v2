@@ -88,7 +88,7 @@ export interface TipoEstadoPozo {
 
 export interface SetEstadoPozos {
   id: ID;
-  proyectoId: ID;
+  simulacionId: ID;
   nombre: string;
   createdAt: string;
   updatedAt: string;
@@ -139,7 +139,7 @@ export interface ElipseVariable {
 
 export interface ElipseValor {
   id: ID;
-  proyectoId: ID;
+  simulacionId: ID;
   elipseVariableId: ID;
   valor: number;
 }
@@ -149,7 +149,6 @@ export interface Simulacion {
   proyectoId: ID;
   tipoSimulacionId: ID;
   escenarioSimulacionId: ID;
-  setEstadoPozosId: ID;
   createdAt: string;
   updatedAt: string;
 }
@@ -163,9 +162,12 @@ export interface Produccion {
   petroleo: number;
   agua: number;
   gas: number;
-  aguaIny: number;
+  agua_iny: number;
 }
 
+/**
+ * ⚠️ Legacy (se elimina cuando removamos el módulo variable-mapa y la tabla VariableMapa)
+ */
 export interface VariableMapa {
   id: ID;
   nombre: string;
@@ -175,7 +177,7 @@ export interface Mapa {
   id: ID;
   proyectoId: ID;
   capaId: ID;
-  variableMapaId: ID;
+  grupoVariableId: ID;
   xedges: number[];
   yedges: number[];
   grid: number[][];

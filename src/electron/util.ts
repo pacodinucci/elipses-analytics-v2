@@ -6,34 +6,66 @@ export function isDev(): boolean {
   return process.env.NODE_ENV === "development";
 }
 
-export function ipcMainHandle<Key extends keyof EventPayloadMapping>(
-  key: Key,
-  handler: () => EventPayloadMapping[Key] | Promise<EventPayloadMapping[Key]>
-) {
-  ipcMain.handle(key, (event) => {
-    const frame = event.senderFrame;
-    if (!frame) {
-      throw new Error("Missing senderFrame");
-    }
+// ---------------------------
+// Tipos auxiliares
+// ---------------------------
+type ElectronApi = Window["electron"];
+type ElectronKey = keyof ElectronApi;
 
+// Obtiene el 1er argumento del método (payload). Si no tiene args -> never
+type PayloadOf<K extends ElectronKey> = ElectronApi[K] extends (
+  payload: infer P,
+) => any
+  ? P
+  : never;
+
+// Obtiene el tipo de respuesta Promise<T> -> T
+type AwaitedReturnOf<K extends ElectronKey> = ElectronApi[K] extends (
+  ...args: any[]
+) => Promise<infer R>
+  ? R
+  : never;
+
+// ---------------------------
+// IPC helpers
+// ---------------------------
+
+export function ipcMainHandle<K extends ElectronKey>(
+  key: K,
+  handler: () => AwaitedReturnOf<K> | Promise<AwaitedReturnOf<K>>,
+) {
+  ipcMain.handle(String(key), (event) => {
+    const frame = event.senderFrame;
+    if (!frame) throw new Error("Missing senderFrame");
     validateEventFrame(frame);
     return handler();
+  });
+}
+
+export function ipcMainHandleWithPayload<K extends ElectronKey>(
+  key: K,
+  handler: (
+    payload: PayloadOf<K>,
+  ) => AwaitedReturnOf<K> | Promise<AwaitedReturnOf<K>>,
+) {
+  ipcMain.handle(String(key), (event, payload) => {
+    const frame = event.senderFrame;
+    if (!frame) throw new Error("Missing senderFrame");
+    validateEventFrame(frame);
+    return handler(payload as PayloadOf<K>);
   });
 }
 
 export function ipcWebContentsSend<Key extends keyof EventPayloadMapping>(
   key: Key,
   webContents: WebContents,
-  payload: EventPayloadMapping[Key]
+  payload: EventPayloadMapping[Key],
 ) {
-  webContents.send(key, payload);
+  webContents.send(String(key), payload);
 }
 
 export function validateEventFrame(frame: WebFrameMain) {
-  console.log(frame.url);
-  if (isDev() && new URL(frame.url).host === "localhost:5123") {
-    return;
-  }
+  if (isDev() && new URL(frame.url).host === "localhost:5123") return;
   if (frame.url !== pathToFileURL(getUIPath()).toString()) {
     throw new Error("Malicious event");
   }

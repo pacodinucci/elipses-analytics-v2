@@ -170,19 +170,11 @@ const initialSchemaStatements = [
   )`,
 ];
 
-
-
-
 const relationalHardeningStatements = [
-  // Proyecto <-> Unidades expected as 1:1 in the domain: one Unidades row per Proyecto.
   `CREATE UNIQUE INDEX IF NOT EXISTS ux_unidades_proyectoId ON Unidades(proyectoId)`,
-  // Prevent duplicated layer assignment rows for the same pozo/capa inside one proyecto.
   `CREATE UNIQUE INDEX IF NOT EXISTS ux_pozocapa_project_pozo_capa ON PozoCapa(proyectoId, pozoId, capaId)`,
-  // Prevent duplicated daily production rows for same project/pozo/capa/date tuple.
   `CREATE UNIQUE INDEX IF NOT EXISTS ux_produccion_project_pozo_capa_fecha ON Produccion(proyectoId, pozoId, capaId, fecha)`,
-  // Prevent duplicated scenario values for the same scenario/pozo/capa/date tuple.
   `CREATE UNIQUE INDEX IF NOT EXISTS ux_valorescenario_escenario_pozo_capa_fecha ON ValorEscenario(escenarioId, pozoId, capaId, fecha)`,
-  // Prevent duplicated state entries per set + pozo.
   `CREATE UNIQUE INDEX IF NOT EXISTS ux_setestadopozosdetalle_set_pozo ON SetEstadoPozosDetalle(setEstadoPozosId, pozoId)`,
 ];
 
@@ -207,6 +199,36 @@ const importPipelineStatements = [
   )`,
 ];
 
+/**
+ * v4: transición al nuevo dominio (additive)
+ * - SetEstadoPozos: agrega simulacionId
+ * - ElipseValor: agrega simulacionId
+ * - Mapa: agrega grupoVariableId
+ * - Backfills determinísticos donde se puede
+ */
+const domainRefactorV4Statements = [
+  // 1) columns nuevas
+  `ALTER TABLE SetEstadoPozos ADD COLUMN simulacionId VARCHAR`,
+  `ALTER TABLE ElipseValor ADD COLUMN simulacionId VARCHAR`,
+  `ALTER TABLE Mapa ADD COLUMN grupoVariableId VARCHAR`,
+
+  // 2) backfill SetEstadoPozos.simulacionId desde Simulacion.setEstadoPozosId (modelo viejo)
+  `UPDATE SetEstadoPozos s
+   SET simulacionId = sim.id
+   FROM Simulacion sim
+   WHERE sim.setEstadoPozosId = s.id`,
+
+  // 3) backfill mapa.grupoVariableId copiando legacy variableMapaId (si existía y tiene sentido)
+  `UPDATE Mapa
+   SET grupoVariableId = variableMapaId
+   WHERE grupoVariableId IS NULL`,
+
+  // 4) indexes útiles para queries (unique se enforcea en cleanup final)
+  `CREATE INDEX IF NOT EXISTS ix_setestadopozos_simulacionId ON SetEstadoPozos(simulacionId)`,
+  `CREATE INDEX IF NOT EXISTS ix_elipsevalor_simulacionId ON ElipseValor(simulacionId)`,
+  `CREATE INDEX IF NOT EXISTS ix_mapa_grupoVariableId ON Mapa(grupoVariableId)`,
+];
+
 export const migrations: Migration[] = [
   {
     version: 1,
@@ -222,5 +244,10 @@ export const migrations: Migration[] = [
     version: 3,
     name: "relational_hardening_indexes",
     statements: relationalHardeningStatements,
+  },
+  {
+    version: 4,
+    name: "domain_refactor_additive_v4",
+    statements: domainRefactorV4Statements,
   },
 ];

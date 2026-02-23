@@ -11,7 +11,10 @@ import type {
   MapImportPayload,
   MapImportRow,
 } from "../domain/importJob.js";
-import { validateCapaTxtImportPayload, validateMapImportPayload } from "../domain/importJob.js";
+import {
+  validateCapaTxtImportPayload,
+  validateMapImportPayload,
+} from "../domain/importJob.js";
 import { ImportJobRepository } from "../infrastructure/importJobRepository.js";
 
 function emptySummary(totalRows: number): ImportJobSummary {
@@ -27,23 +30,64 @@ function emptySummary(totalRows: number): ImportJobSummary {
 function validateRow(row: MapImportRow, rowNumber: number): ImportJobError[] {
   const errors: ImportJobError[] = [];
 
-  if (!row.id) errors.push({ rowNumber, field: "id", severity: "error", message: "id is required" });
+  if (!row.id)
+    errors.push({
+      rowNumber,
+      field: "id",
+      severity: "error",
+      message: "id is required",
+    });
+
   if (!row.proyectoId) {
-    errors.push({ rowNumber, field: "proyectoId", severity: "error", message: "proyectoId is required" });
+    errors.push({
+      rowNumber,
+      field: "proyectoId",
+      severity: "error",
+      message: "proyectoId is required",
+    });
   }
-  if (!row.capaId) errors.push({ rowNumber, field: "capaId", severity: "error", message: "capaId is required" });
-  if (!row.variableMapaId) {
-    errors.push({ rowNumber, field: "variableMapaId", severity: "error", message: "variableMapaId is required" });
+
+  if (!row.capaId) {
+    errors.push({
+      rowNumber,
+      field: "capaId",
+      severity: "error",
+      message: "capaId is required",
+    });
+  }
+
+  if (!row.grupoVariableId) {
+    errors.push({
+      rowNumber,
+      field: "grupoVariableId",
+      severity: "error",
+      message: "grupoVariableId is required",
+    });
   }
 
   if (!Array.isArray(row.xedges)) {
-    errors.push({ rowNumber, field: "xedges", severity: "error", message: "xedges must be an array" });
+    errors.push({
+      rowNumber,
+      field: "xedges",
+      severity: "error",
+      message: "xedges must be an array",
+    });
   }
   if (!Array.isArray(row.yedges)) {
-    errors.push({ rowNumber, field: "yedges", severity: "error", message: "yedges must be an array" });
+    errors.push({
+      rowNumber,
+      field: "yedges",
+      severity: "error",
+      message: "yedges must be an array",
+    });
   }
   if (!Array.isArray(row.grid)) {
-    errors.push({ rowNumber, field: "grid", severity: "error", message: "grid must be an array" });
+    errors.push({
+      rowNumber,
+      field: "grid",
+      severity: "error",
+      message: "grid must be an array",
+    });
   }
 
   return errors;
@@ -66,7 +110,10 @@ function parseLayerTxtContent(content: string): ParsedLayerRow[] {
 
   return lines
     .map((line, index) => ({ line, rowNumber: index + 1 }))
-    .filter(({ line, rowNumber }) => !(rowNumber === 1 && line.toLowerCase() === "capa"))
+    .filter(
+      ({ line, rowNumber }) =>
+        !(rowNumber === 1 && line.toLowerCase() === "capa"),
+    )
     .map(({ line, rowNumber }) => ({ rowNumber, nombre: line }));
 }
 
@@ -95,9 +142,11 @@ export class ImportService {
     summary.errors = errors.length;
     const status = errors.length > 0 ? "failed" : "completed";
     const jobId = await this.repository.createJob("Mapa", "dry-run", summary);
+
     if (errors.length > 0) {
       await this.repository.addErrors(jobId, errors);
     }
+
     await this.repository.completeJob(jobId, status, summary);
 
     return {
@@ -130,6 +179,7 @@ export class ImportService {
     for (let i = 0; i < payload.rows.length; i += 1) {
       const row = payload.rows[i];
       try {
+        // MapImportRow está alineado con UpsertMapInput (incluye grupoVariableId)
         await mapService.upsertMap(row);
         summary.acceptedRows += 1;
       } catch (error) {
@@ -137,16 +187,19 @@ export class ImportService {
         errors.push({
           rowNumber: i + 1,
           severity: "error",
-          message: error instanceof Error ? error.message : "Unknown map import error",
+          message:
+            error instanceof Error ? error.message : "Unknown map import error",
         });
       }
     }
 
     summary.errors = errors.length;
     const status = errors.length > 0 ? "failed" : "completed";
+
     if (errors.length > 0) {
       await this.repository.addErrors(jobId, errors);
     }
+
     await this.repository.completeJob(jobId, status, summary);
 
     return {
@@ -159,7 +212,9 @@ export class ImportService {
     };
   }
 
-  async dryRunCapaTxtImport(payload: CapaTxtImportPayload): Promise<ImportJobResult> {
+  async dryRunCapaTxtImport(
+    payload: CapaTxtImportPayload,
+  ): Promise<ImportJobResult> {
     validateCapaTxtImportPayload(payload);
     await this.ensureSchema();
 
@@ -168,20 +223,37 @@ export class ImportService {
     const errors: ImportJobError[] = [];
 
     if (parsedRows.length === 0) {
-      errors.push({ rowNumber: 1, field: "content", severity: "error", message: "TXT does not contain layer rows" });
+      errors.push({
+        rowNumber: 1,
+        field: "content",
+        severity: "error",
+        message: "TXT does not contain layer rows",
+      });
     }
+
     const seen = new Set<string>();
 
     parsedRows.forEach((row) => {
       const normalized = row.nombre.toLowerCase();
+
       if (!row.nombre) {
-        errors.push({ rowNumber: row.rowNumber, field: "nombre", severity: "error", message: "nombre is required" });
+        errors.push({
+          rowNumber: row.rowNumber,
+          field: "nombre",
+          severity: "error",
+          message: "nombre is required",
+        });
         summary.rejectedRows += 1;
         return;
       }
 
       if (seen.has(normalized)) {
-        errors.push({ rowNumber: row.rowNumber, field: "nombre", severity: "error", message: "duplicated layer name" });
+        errors.push({
+          rowNumber: row.rowNumber,
+          field: "nombre",
+          severity: "error",
+          message: "duplicated layer name",
+        });
         summary.rejectedRows += 1;
         return;
       }
@@ -193,9 +265,11 @@ export class ImportService {
     summary.errors = errors.length;
     const status = errors.length > 0 ? "failed" : "completed";
     const jobId = await this.repository.createJob("Capa", "dry-run", summary);
+
     if (errors.length > 0) {
       await this.repository.addErrors(jobId, errors);
     }
+
     await this.repository.completeJob(jobId, status, summary);
 
     return {
@@ -208,7 +282,9 @@ export class ImportService {
     };
   }
 
-  async commitCapaTxtImport(payload: CapaTxtImportPayload): Promise<ImportJobResult> {
+  async commitCapaTxtImport(
+    payload: CapaTxtImportPayload,
+  ): Promise<ImportJobResult> {
     validateCapaTxtImportPayload(payload);
     await this.ensureSchema();
 
@@ -249,16 +325,21 @@ export class ImportService {
           rowNumber: row.rowNumber,
           field: "nombre",
           severity: "error",
-          message: error instanceof Error ? error.message : "Unknown layer import error",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Unknown layer import error",
         });
       }
     }
 
     summary.errors = errors.length;
     const status = errors.length > 0 ? "failed" : "completed";
+
     if (errors.length > 0) {
       await this.repository.addErrors(jobId, errors);
     }
+
     await this.repository.completeJob(jobId, status, summary);
 
     return {

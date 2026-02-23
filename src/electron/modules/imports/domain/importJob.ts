@@ -11,7 +11,7 @@ export interface MapImportRow {
   id: string;
   proyectoId: string;
   capaId: string;
-  variableMapaId: string;
+  grupoVariableId: string;
   xedges: number[];
   yedges: number[];
   grid: number[][];
@@ -44,12 +44,18 @@ export interface ImportJobResult {
 }
 
 export function validateMapImportPayload(payload: MapImportPayload): void {
-  if (!payload.rows || !Array.isArray(payload.rows) || payload.rows.length === 0) {
+  if (
+    !payload.rows ||
+    !Array.isArray(payload.rows) ||
+    payload.rows.length === 0
+  ) {
     throw new Error("Map import requires at least one row");
   }
 }
 
-export function validateCapaTxtImportPayload(payload: CapaTxtImportPayload): void {
+export function validateCapaTxtImportPayload(
+  payload: CapaTxtImportPayload,
+): void {
   if (!payload.proyectoId?.trim()) {
     throw new Error("Layer import requires proyectoId");
   }

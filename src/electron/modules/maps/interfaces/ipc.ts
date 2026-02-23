@@ -5,29 +5,31 @@ import { toLegacyVisualizerMapResponse } from "./legacyAdapter.js";
 import { validateEventFrame } from "../../../util.js";
 
 export function registerMapIpcHandlers() {
-  ipcMain.handle("mapsGetByLayer", async (event, params: { capaId: string; variableMapaId?: string }) => {
-    const frame = event.senderFrame;
-    if (!frame) {
-      throw new Error("Missing senderFrame");
-    }
-
-    validateEventFrame(frame);
-    return mapService.getMapByLayer(params.capaId, params.variableMapaId);
-  });
-
-
   ipcMain.handle(
-    "legacyVisualizerGetMap",
-    async (event, params: { capaId: string; variableMapaId?: string }) => {
+    "mapsGetByLayer",
+    async (event, params: { capaId: string }) => {
       const frame = event.senderFrame;
       if (!frame) {
         throw new Error("Missing senderFrame");
       }
 
       validateEventFrame(frame);
-      const map = await mapService.getMapByLayer(params.capaId, params.variableMapaId);
+      return mapService.getMapByLayer(params.capaId);
+    },
+  );
+
+  ipcMain.handle(
+    "legacyVisualizerGetMap",
+    async (event, params: { capaId: string }) => {
+      const frame = event.senderFrame;
+      if (!frame) {
+        throw new Error("Missing senderFrame");
+      }
+
+      validateEventFrame(frame);
+      const map = await mapService.getMapByLayer(params.capaId);
       return map ? toLegacyVisualizerMapResponse(map) : null;
-    }
+    },
   );
 
   ipcMain.handle("mapsUpsert", async (event, payload: UpsertMapInput) => {

@@ -3,7 +3,11 @@ import { databaseService } from "../../../shared/db/index.js";
 import type { ImportJobError, ImportJobSummary } from "../domain/importJob.js";
 
 export class ImportJobRepository {
-  async createJob(entity: string, mode: "dry-run" | "commit", summary: ImportJobSummary): Promise<string> {
+  async createJob(
+    entity: string,
+    mode: "dry-run" | "commit",
+    summary: ImportJobSummary,
+  ): Promise<string> {
     const jobId = randomUUID();
     const now = new Date().toISOString();
 
@@ -11,20 +15,24 @@ export class ImportJobRepository {
       `INSERT INTO import_jobs (
         id, entity, mode, status, createdAt, finishedAt, summaryJson
       ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [jobId, entity, mode, "running", now, null, JSON.stringify(summary)]
+      [jobId, entity, mode, "running", now, null, JSON.stringify(summary)],
     );
 
     return jobId;
   }
 
-  async completeJob(jobId: string, status: "completed" | "failed", summary: ImportJobSummary): Promise<void> {
+  async completeJob(
+    jobId: string,
+    status: "completed" | "failed",
+    summary: ImportJobSummary,
+  ): Promise<void> {
     await databaseService.run(
       `UPDATE import_jobs
        SET status = ?,
            finishedAt = ?,
            summaryJson = ?
        WHERE id = ?`,
-      [status, new Date().toISOString(), JSON.stringify(summary), jobId]
+      [status, new Date().toISOString(), JSON.stringify(summary), jobId],
     );
   }
 
@@ -42,7 +50,7 @@ export class ImportJobRepository {
           err.severity,
           err.message,
           new Date().toISOString(),
-        ]
+        ],
       );
     }
   }

@@ -10,25 +10,27 @@ export interface CreateSimulacionInput {
   proyectoId: string;
   tipoSimulacionId: string;
   escenarioSimulacionId: string;
-  setEstadoPozosId: string;
 }
 
-export function validateCreateTipoSimulacionInput(input: CreateTipoSimulacionInput): void {
+export function validateCreateTipoSimulacionInput(
+  input: CreateTipoSimulacionInput,
+): void {
   if (!input.id || !input.nombre) {
     throw new Error("TipoSimulacion requires id and nombre");
   }
 }
 
-export function validateCreateSimulacionInput(input: CreateSimulacionInput): void {
+export function validateCreateSimulacionInput(
+  input: CreateSimulacionInput,
+): void {
   if (
     !input.id ||
     !input.proyectoId ||
     !input.tipoSimulacionId ||
-    !input.escenarioSimulacionId ||
-    !input.setEstadoPozosId
+    !input.escenarioSimulacionId
   ) {
     throw new Error(
-      "Simulacion requires id, proyectoId, tipoSimulacionId, escenarioSimulacionId and setEstadoPozosId"
+      "Simulacion requires id, proyectoId, tipoSimulacionId and escenarioSimulacionId",
     );
   }
 }

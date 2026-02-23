@@ -5,7 +5,7 @@ export interface CreateTipoEstadoPozoInput {
 
 export interface CreateSetEstadoPozosInput {
   id: string;
-  proyectoId: string;
+  simulacionId: string;
   nombre: string;
 }
 
@@ -22,18 +22,24 @@ function requireString(value: string, field: string): void {
   }
 }
 
-export function validateCreateTipoEstadoPozoInput(input: CreateTipoEstadoPozoInput): void {
+export function validateCreateTipoEstadoPozoInput(
+  input: CreateTipoEstadoPozoInput,
+): void {
   requireString(input.id, "id");
   requireString(input.nombre, "nombre");
 }
 
-export function validateCreateSetEstadoPozosInput(input: CreateSetEstadoPozosInput): void {
+export function validateCreateSetEstadoPozosInput(
+  input: CreateSetEstadoPozosInput,
+): void {
   requireString(input.id, "id");
-  requireString(input.proyectoId, "proyectoId");
+  requireString(input.simulacionId, "simulacionId");
   requireString(input.nombre, "nombre");
 }
 
-export function validateCreateSetEstadoPozosDetalleInput(input: CreateSetEstadoPozosDetalleInput): void {
+export function validateCreateSetEstadoPozosDetalleInput(
+  input: CreateSetEstadoPozosDetalleInput,
+): void {
   requireString(input.id, "id");
   requireString(input.setEstadoPozosId, "setEstadoPozosId");
   requireString(input.pozoId, "pozoId");

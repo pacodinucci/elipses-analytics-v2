@@ -7,7 +7,7 @@ function mapRowToEntity(row: Record<string, unknown>): Mapa {
     id: String(row.id),
     proyectoId: String(row.proyectoId),
     capaId: String(row.capaId),
-    variableMapaId: String(row.variableMapaId),
+    grupoVariableId: String(row.grupoVariableId),
     xedges: JSON.parse(String(row.xedges)) as number[],
     yedges: JSON.parse(String(row.yedges)) as number[],
     grid: JSON.parse(String(row.grid)) as number[][],
@@ -17,14 +17,13 @@ function mapRowToEntity(row: Record<string, unknown>): Mapa {
 }
 
 export class MapRepository {
-  async getByLayer(capaId: string, variableMapaId?: string): Promise<Mapa | null> {
+  async getByLayer(capaId: string): Promise<Mapa | null> {
     const rows = await databaseService.readAll(
-      `SELECT id, proyectoId, capaId, variableMapaId, xedges, yedges, grid, createdAt, updatedAt
+      `SELECT id, proyectoId, capaId, grupoVariableId, xedges, yedges, grid, createdAt, updatedAt
        FROM Mapa
        WHERE capaId = ?
-       ${variableMapaId ? "AND variableMapaId = ?" : ""}
        LIMIT 1`,
-      variableMapaId ? [capaId, variableMapaId] : [capaId]
+      [capaId],
     );
 
     if (rows.length === 0) {
@@ -41,26 +40,26 @@ export class MapRepository {
     if (!existing) {
       await databaseService.run(
         `INSERT INTO Mapa (
-          id, proyectoId, capaId, variableMapaId, xedges, yedges, grid, createdAt, updatedAt
+          id, proyectoId, capaId, grupoVariableId, xedges, yedges, grid, createdAt, updatedAt
         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           input.id,
           input.proyectoId,
           input.capaId,
-          input.variableMapaId,
+          input.grupoVariableId,
           JSON.stringify(input.xedges),
           JSON.stringify(input.yedges),
           JSON.stringify(input.grid),
           now,
           now,
-        ]
+        ],
       );
     } else {
       await databaseService.run(
         `UPDATE Mapa
          SET id = ?,
              proyectoId = ?,
-             variableMapaId = ?,
+             grupoVariableId = ?,
              xedges = ?,
              yedges = ?,
              grid = ?,
@@ -69,17 +68,17 @@ export class MapRepository {
         [
           input.id,
           input.proyectoId,
-          input.variableMapaId,
+          input.grupoVariableId,
           JSON.stringify(input.xedges),
           JSON.stringify(input.yedges),
           JSON.stringify(input.grid),
           now,
           input.capaId,
-        ]
+        ],
       );
     }
 
-    const updated = await this.getByLayer(input.capaId, input.variableMapaId);
+    const updated = await this.getByLayer(input.capaId);
     if (!updated) {
       throw new Error("Map upsert failed");
     }

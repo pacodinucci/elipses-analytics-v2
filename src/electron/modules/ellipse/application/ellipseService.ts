@@ -1,15 +1,23 @@
 import type { ElipseValor, ElipseVariable } from "../../../backend/models.js";
 import { databaseService } from "../../../shared/db/index.js";
 import { migrations } from "../../../shared/db/migrations.js";
-import type { CreateElipseValorInput, CreateElipseVariableInput } from "../domain/ellipse.js";
-import { validateCreateElipseValorInput, validateCreateElipseVariableInput } from "../domain/ellipse.js";
+import type {
+  CreateElipseValorInput,
+  CreateElipseVariableInput,
+} from "../domain/ellipse.js";
+import {
+  validateCreateElipseValorInput,
+  validateCreateElipseVariableInput,
+} from "../domain/ellipse.js";
 import { EllipseRepository } from "../infrastructure/ellipseRepository.js";
 
 export class EllipseService {
   private readonly repository = new EllipseRepository();
   private schemaReady = false;
 
-  async createVariable(input: CreateElipseVariableInput): Promise<ElipseVariable> {
+  async createVariable(
+    input: CreateElipseVariableInput,
+  ): Promise<ElipseVariable> {
     validateCreateElipseVariableInput(input);
     await this.ensureSchema();
     return this.repository.createVariable(input);
@@ -26,10 +34,10 @@ export class EllipseService {
     return this.repository.createValor(input);
   }
 
-  async listValoresByProject(proyectoId: string): Promise<ElipseValor[]> {
-    if (!proyectoId) throw new Error("proyectoId is required");
+  async listValoresBySimulacion(simulacionId: string): Promise<ElipseValor[]> {
+    if (!simulacionId) throw new Error("simulacionId is required");
     await this.ensureSchema();
-    return this.repository.listValoresByProject(proyectoId);
+    return this.repository.listValoresBySimulacion(simulacionId);
   }
 
   private async ensureSchema(): Promise<void> {
