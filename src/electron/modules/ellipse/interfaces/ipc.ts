@@ -8,16 +8,16 @@ import type {
   CreateElipseVariableInput,
 } from "../domain/ellipse.js";
 
-// ✅ NUEVO: payload para normalización
 export type ElipsesNormalizationAllPayload = {
-  // compat: el hook manda yacimientoId (pero en v2 contiene proyectoId)
   yacimientoId?: string | null;
-  // v2 preferido (si lo usás en el futuro)
   proyectoId?: string | null;
 
   scope: "layer_date" | "layer_all" | "field_date" | "field_all";
   capa?: string | null; // capaNombre
   fecha?: string | null; // YYYY-MM-DD
+
+  // ✅ recomendado si querés normalización por simulación (si tu UI lo tiene)
+  simulacionId?: string | null;
 };
 
 export function registerEllipseIpcHandlers() {
@@ -33,11 +33,14 @@ export function registerEllipseIpcHandlers() {
 
   ipcMain.handle(
     "ellipseListByLayer",
-    async (event, payload: { capaId: string }) => {
+    async (event, payload: { simulacionId: string; capaId: string }) => {
       const frame = event.senderFrame;
       if (!frame) throw new Error("Missing senderFrame");
       validateEventFrame(frame);
-      return ellipseService.listElipsesByLayer(payload.capaId);
+      return ellipseService.listElipsesByLayer(
+        payload.simulacionId,
+        payload.capaId,
+      );
     },
   );
 
@@ -94,14 +97,12 @@ export function registerEllipseIpcHandlers() {
     },
   );
 
-  // ✅ Normalización (min/max por variable)
   ipcMain.handle(
     "elipsesNormalizationAll",
     async (event, payload: ElipsesNormalizationAllPayload) => {
       const frame = event.senderFrame;
       if (!frame) throw new Error("Missing senderFrame");
       validateEventFrame(frame);
-
       return ellipseService.elipsesNormalizationAll(payload);
     },
   );

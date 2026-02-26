@@ -6,6 +6,10 @@ export interface CreateElipseVariableInput {
 export interface CreateElipseInput {
   id: string;
   proyectoId: string;
+
+  // ✅ v7: geometría depende de simulación
+  simulacionId: string;
+
   capaId: string;
   pozoInyectorId?: string | null;
   pozoProductorId?: string | null;
@@ -20,8 +24,10 @@ export interface CreateElipseInput {
 
 export interface CreateElipseValorInput {
   id: string;
-  simulacionId: string;
+
+  // ✅ v7: simulación implícita por elipseId -> Elipse.simulacionId
   elipseId: string;
+
   elipseVariableId: string;
   valor: number;
 }
@@ -64,6 +70,10 @@ export function validateCreateElipseVariableInput(
 export function validateCreateElipseInput(input: CreateElipseInput): void {
   requireString(input.id, "id");
   requireString(input.proyectoId, "proyectoId");
+
+  // ✅ v7
+  requireString(input.simulacionId, "simulacionId");
+
   requireString(input.capaId, "capaId");
   requireOptionalStringOrNull(input.pozoInyectorId, "pozoInyectorId");
   requireOptionalStringOrNull(input.pozoProductorId, "pozoProductorId");
@@ -83,7 +93,6 @@ export function validateCreateElipseValorInput(
   input: CreateElipseValorInput,
 ): void {
   requireString(input.id, "id");
-  requireString(input.simulacionId, "simulacionId");
   requireString(input.elipseId, "elipseId");
   requireString(input.elipseVariableId, "elipseVariableId");
   if (!Number.isFinite(input.valor)) {

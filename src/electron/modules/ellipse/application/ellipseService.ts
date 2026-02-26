@@ -24,7 +24,7 @@ export class EllipseService {
   private schemaReady = false;
 
   // =========================
-  // ✅ ELIPSE (geometría)
+  // ✅ ELIPSE (geometría por simulación)
   // =========================
   async createElipse(input: CreateElipseInput): Promise<Elipse> {
     validateCreateElipseInput(input);
@@ -32,10 +32,17 @@ export class EllipseService {
     return this.repository.createElipse(input);
   }
 
-  async listElipsesByLayer(capaId: string): Promise<Elipse[]> {
+  /**
+   * ✅ v7: elipses son por simulación + capa
+   */
+  async listElipsesByLayer(
+    simulacionId: string,
+    capaId: string,
+  ): Promise<Elipse[]> {
+    if (!simulacionId) throw new Error("simulacionId is required");
     if (!capaId) throw new Error("capaId is required");
     await this.ensureSchema();
-    return this.repository.listElipsesByLayer(capaId);
+    return this.repository.listElipsesByLayer(simulacionId, capaId);
   }
 
   async listElipsesByProject(proyectoId: string): Promise<Elipse[]> {
@@ -61,7 +68,7 @@ export class EllipseService {
   }
 
   // =========================
-  // ✅ VALORES
+  // ✅ VALORES (depende de Elipse)
   // =========================
   async createValor(input: CreateElipseValorInput): Promise<ElipseValor> {
     validateCreateElipseValorInput(input);
@@ -69,13 +76,16 @@ export class EllipseService {
     return this.repository.createValor(input);
   }
 
+  /**
+   * ✅ compat: se mantiene la API por simulación, pero el repo lo resuelve con JOIN Elipse
+   */
   async listValoresBySimulacion(simulacionId: string): Promise<ElipseValor[]> {
     if (!simulacionId) throw new Error("simulacionId is required");
     await this.ensureSchema();
     return this.repository.listValoresBySimulacion(simulacionId);
   }
 
-  // ✅ Normalización (por proyecto)
+  // ✅ Normalización (por proyecto; opcional por simulación)
   async elipsesNormalizationAll(payload: ElipsesNormalizationAllPayload) {
     await this.ensureSchema();
 
@@ -88,20 +98,16 @@ export class EllipseService {
     const capa = payload.capa ?? null;
     const fecha = payload.fecha ?? null;
 
+    // ✅ v7: si el renderer lo manda, filtramos universo por simulación
+    const simulacionId = payload.simulacionId ?? null;
+
     try {
-      /**
-       * ⚠️ IMPORTANTE:
-       * A partir de v6 (tabla Elipse), la normalización debe basarse en:
-       *   Elipse (universo) ⨝ ElipseValor (valores)
-       * para evitar “valores sin geometría” y permitir scopes correctos por capa/proyecto.
-       *
-       * => Ajustar EllipseRepository.elipsesNormalizationAll a JOIN ElipseValor.elipseId = Elipse.id
-       */
       const ranges = await this.repository.elipsesNormalizationAll({
         proyectoId,
         scope,
         capa,
         fecha,
+        simulacionId,
       });
 
       return { ok: true as const, ranges };

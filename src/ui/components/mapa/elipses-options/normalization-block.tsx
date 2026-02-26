@@ -3,6 +3,10 @@ import type { ElipsesNormalizationScope } from "../../../store/elipses-style";
 import { useElipsesNormalization } from "../../../hooks/use-elipses-normalization";
 import { Hint, SectionTitle } from "./shared";
 
+// ✅ fix TS: Object.entries() te da `unknown` si `ranges` no está tipado fuerte en el hook.
+// Acá lo tipamos localmente (cambio mínimo y efectivo).
+type NormalizationRange = { min: number | null; max: number | null };
+
 type NormalizationViewProps = {
   scope: ElipsesNormalizationScope;
   onChangeScope: (v: ElipsesNormalizationScope) => void;
@@ -20,6 +24,9 @@ export function NormalizationBlockView({
   fecha,
   normAll,
 }: NormalizationViewProps) {
+  // ✅ cast mínimo para destrabar r.min / r.max
+  const ranges = normAll.ranges as Record<string, NormalizationRange>;
+
   return (
     <div className="elipsesOpt__card elipsesOpt__stack elipsesOpt__stack--tight">
       <SectionTitle>Normalización</SectionTitle>
@@ -42,6 +49,7 @@ export function NormalizationBlockView({
           <option value="layer_date">Capa (una fecha)</option>
         </select>
       </div>
+
       <div className="elipsesOpt__ctx">
         Contexto:{" "}
         <span className="elipsesOpt__ctxStrong">
@@ -63,13 +71,14 @@ export function NormalizationBlockView({
 
       {!normAll.loading &&
         !normAll.error &&
-        Object.keys(normAll.ranges).length === 0 && (
+        Object.keys(ranges).length === 0 && (
           <div className="elipsesOpt__muted11">
             No hay rangos disponibles para este scope/contexto (o faltan
             capa/fecha para el scope seleccionado).
           </div>
         )}
-      {Object.keys(normAll.ranges).length > 0 && (
+
+      {Object.keys(ranges).length > 0 && (
         <div className="elipsesOpt__tableWrap">
           <table className="elipsesOpt__table">
             <thead>
@@ -82,7 +91,7 @@ export function NormalizationBlockView({
               </tr>
             </thead>
             <tbody>
-              {Object.entries(normAll.ranges)
+              {Object.entries(ranges)
                 .sort((a, b) => a[0].localeCompare(b[0]))
                 .map(([name, r]) => (
                   <tr key={name}>
@@ -101,6 +110,7 @@ export function NormalizationBlockView({
           </table>
         </div>
       )}
+
       <div className="elipsesOpt__endpoint">
         Endpoint:{" "}
         <code className="elipsesOpt__code">GET /elipses/normalization_all</code>

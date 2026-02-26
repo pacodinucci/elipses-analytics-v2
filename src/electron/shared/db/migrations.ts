@@ -207,42 +207,28 @@ const importPipelineStatements = [
  * - Backfills determinísticos donde se puede
  */
 const domainRefactorV4Statements = [
-  // 1) columns nuevas
   `ALTER TABLE SetEstadoPozos ADD COLUMN simulacionId VARCHAR`,
   `ALTER TABLE ElipseValor ADD COLUMN simulacionId VARCHAR`,
   `ALTER TABLE Mapa ADD COLUMN grupoVariableId VARCHAR`,
 
-  // 2) backfill SetEstadoPozos.simulacionId desde Simulacion.setEstadoPozosId (modelo viejo)
   `UPDATE SetEstadoPozos s
    SET simulacionId = sim.id
    FROM Simulacion sim
    WHERE sim.setEstadoPozosId = s.id`,
 
-  // 3) backfill mapa.grupoVariableId copiando legacy variableMapaId (si existía y tiene sentido)
   `UPDATE Mapa
    SET grupoVariableId = variableMapaId
    WHERE grupoVariableId IS NULL`,
 
-  // 4) indexes útiles para queries (unique se enforcea en cleanup final)
   `CREATE INDEX IF NOT EXISTS ix_setestadopozos_simulacionId ON SetEstadoPozos(simulacionId)`,
   `CREATE INDEX IF NOT EXISTS ix_elipsevalor_simulacionId ON ElipseValor(simulacionId)`,
   `CREATE INDEX IF NOT EXISTS ix_mapa_grupoVariableId ON Mapa(grupoVariableId)`,
 ];
 
-/**
- * v5: precisión del modelo de escenarios
- * - TipoEscenario.nombre único
- * - Escenario único por (proyectoId, nombre)
- * - ValorEscenario: métricas NULLABLE (según tipoEscenario)
- *
- * Nota: en DuckDB es más robusto reconstruir la tabla para remover NOT NULL.
- */
 const scenarioPrecisionV5Statements = [
-  // uniques (como índices para compat DuckDB)
   `CREATE UNIQUE INDEX IF NOT EXISTS ux_tipoescenario_nombre ON TipoEscenario(nombre)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS ux_escenario_proyecto_nombre ON Escenario(proyectoId, nombre)`,
 
-  // reconstruir ValorEscenario con columnas NULLABLE
   `CREATE TABLE IF NOT EXISTS ValorEscenario__v2 (
     id VARCHAR PRIMARY KEY,
     escenarioId VARCHAR NOT NULL REFERENCES Escenario(id),
@@ -262,30 +248,19 @@ const scenarioPrecisionV5Statements = [
     UNIQUE(escenarioId, pozoId, capaId, fecha)
   )`,
 
-  // copiar datos existentes
   `INSERT INTO ValorEscenario__v2
    (id, escenarioId, pozoId, capaId, fecha, petroleo, agua, gas, inyeccionGas, inyeccionAgua, createdAt, updatedAt)
    SELECT id, escenarioId, pozoId, capaId, fecha, petroleo, agua, gas, inyeccionGas, inyeccionAgua, createdAt, updatedAt
    FROM ValorEscenario`,
 
-  // swap
   `DROP TABLE ValorEscenario`,
   `ALTER TABLE ValorEscenario__v2 RENAME TO ValorEscenario`,
 
-  // índices útiles de consulta
   `CREATE INDEX IF NOT EXISTS ix_valorescenario_escenario_capa_fecha ON ValorEscenario(escenarioId, capaId, fecha)`,
   `CREATE INDEX IF NOT EXISTS ix_valorescenario_escenario_pozo ON ValorEscenario(escenarioId, pozoId)`,
 ];
 
-/**
- * v6: Elipses (geometría + vínculo ElipseValor.elipseId)
- * - Crea tabla Elipse (geometría por proyecto/capa, opcionalmente vinculada a pozos)
- * - ElipseValor: agrega elipseId (FK lógica al dominio v2; se endurece más adelante)
- *
- * Nota: additive. No dropeamos columnas legacy aquí.
- */
 const elipsesGeometryV6Statements = [
-  // 1) tabla de geometría
   `CREATE TABLE IF NOT EXISTS Elipse (
     id VARCHAR PRIMARY KEY,
     proyectoId VARCHAR NOT NULL REFERENCES Proyecto(id),
@@ -293,7 +268,6 @@ const elipsesGeometryV6Statements = [
     pozoInyectorId VARCHAR REFERENCES Pozo(id),
     pozoProductorId VARCHAR REFERENCES Pozo(id),
 
-    -- contorno (polígono sampleado)
     x DOUBLE[] NOT NULL,
     y DOUBLE[] NOT NULL,
 
@@ -304,10 +278,8 @@ const elipsesGeometryV6Statements = [
     CHECK (array_length(x) >= 3)
   )`,
 
-  // 2) columna nueva en ElipseValor
   `ALTER TABLE ElipseValor ADD COLUMN elipseId VARCHAR`,
 
-  // 3) índices de soporte
   `CREATE INDEX IF NOT EXISTS ix_elipse_proyecto_capa ON Elipse(proyectoId, capaId)`,
   `CREATE INDEX IF NOT EXISTS ix_elipse_capaId ON Elipse(capaId)`,
   `CREATE INDEX IF NOT EXISTS ix_elipse_pozoInyectorId ON Elipse(pozoInyectorId)`,
@@ -315,9 +287,52 @@ const elipsesGeometryV6Statements = [
 
   `CREATE INDEX IF NOT EXISTS ix_elipsevalor_elipseId ON ElipseValor(elipseId)`,
   `CREATE INDEX IF NOT EXISTS ix_elipsevalor_sim_var ON ElipseValor(simulacionId, elipseVariableId)`,
+];
 
-  // unique “ideal” (lo dejamos para v7 cuando elipseId sea NOT NULL)
-  // `CREATE UNIQUE INDEX IF NOT EXISTS ux_elipsevalor_sim_elipse_var ON ElipseValor(simulacionId, elipseId, elipseVariableId)`
+/**
+ * v7: Elipses por simulación
+ * - Elipse: agrega simulacionId (NULLABLE por ahora; se endurece en v8)
+ * - ElipseValor: se reconstruye para depender de Elipse (sin simulacionId)
+ *   y agrega createdAt/updatedAt (consistencia con el resto del dominio).
+ */
+const elipsesBySimulacionV7Statements = [
+  // 1) Elipse ahora pertenece a una simulación
+  `ALTER TABLE Elipse ADD COLUMN simulacionId VARCHAR`,
+
+  // índices nuevos para consultas típicas
+  `CREATE INDEX IF NOT EXISTS ix_elipse_simulacionId ON Elipse(simulacionId)`,
+  `CREATE INDEX IF NOT EXISTS ix_elipse_sim_capa ON Elipse(simulacionId, capaId)`,
+
+  // 2) Rebuild ElipseValor sin simulacionId (depende de elipseId)
+  `CREATE TABLE IF NOT EXISTS ElipseValor__v2 (
+    id VARCHAR PRIMARY KEY,
+    elipseId VARCHAR NOT NULL REFERENCES Elipse(id),
+    elipseVariableId VARCHAR NOT NULL REFERENCES ElipseVariable(id),
+    valor DOUBLE NOT NULL,
+    createdAt TIMESTAMP NOT NULL,
+    updatedAt TIMESTAMP NOT NULL,
+    UNIQUE(elipseId, elipseVariableId)
+  )`,
+
+  // Copiamos lo que se pueda desde la tabla vieja:
+  // - elipseId ya existe desde v6 (puede ser NULL para legacy; esas filas no se copian)
+  `INSERT INTO ElipseValor__v2 (id, elipseId, elipseVariableId, valor, createdAt, updatedAt)
+   SELECT
+     id,
+     elipseId,
+     elipseVariableId,
+     valor,
+     NOW() AS createdAt,
+     NOW() AS updatedAt
+   FROM ElipseValor
+   WHERE elipseId IS NOT NULL`,
+
+  `DROP TABLE ElipseValor`,
+  `ALTER TABLE ElipseValor__v2 RENAME TO ElipseValor`,
+
+  // índices útiles
+  `CREATE INDEX IF NOT EXISTS ix_elipsevalor_elipseId ON ElipseValor(elipseId)`,
+  `CREATE INDEX IF NOT EXISTS ix_elipsevalor_var ON ElipseValor(elipseVariableId)`,
 ];
 
 export const migrations: Migration[] = [
@@ -350,5 +365,12 @@ export const migrations: Migration[] = [
     version: 6,
     name: "elipses_geometry_v6",
     statements: elipsesGeometryV6Statements,
+  },
+
+  // ✅ NUEVO
+  {
+    version: 7,
+    name: "elipses_by_simulacion_v7",
+    statements: elipsesBySimulacionV7Statements,
   },
 ];

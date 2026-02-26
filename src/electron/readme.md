@@ -7,8 +7,9 @@ Backend local embebido en Electron que:
 - Persiste el dominio en **DuckDB** (`data/backend-v2.duckdb`)
 - Expone operaciones al renderer vía **IPC seguro** (validación de frame)
 - Organiza el dominio por **módulos**
-- Gestiona el esquema mediante **migraciones versionadas** (`shared/db/migrations.ts`)
+- Gestiona el esquema mediante **migraciones versionadas** (`src/electron/shared/db/migrations.ts`)
 - Soporta flujo inicial: **crear proyecto** + **importar capas desde TXT**
+- ✅ **Nuevo**: soporta **geometría de elipses** (tabla `Elipse`) y valores por simulación
 
 ---
 
@@ -56,12 +57,19 @@ Archivo: `src/electron/backend/models.ts`
 
 ### Simulación / Set de estados
 
-- `Simulacion` **no** tiene `setEstadoPozosId` como fuente de verdad.
+- `Simulacion` **no** tiene `setEstadoPozosId` como fuente de verdad (legacy).
 - `SetEstadoPozos` pertenece a `Simulacion` vía `simulacionId` (conceptualmente 1:1).
 
-### Elipses
+### Elipses (✅ actualizado)
 
-- `ElipseValor` pertenece a `Simulacion` vía `simulacionId`.
+El dominio ahora separa **geometría** de **valores**:
+
+- **`Elipse`**: geometría (polígono sampleado) por `proyectoId` + `capaId`, con vínculos opcionales a pozos.
+  - `id, proyectoId, capaId, pozoInyectorId?, pozoProductorId?, x[], y[]`
+- **`ElipseValor`**: valores por simulación y variable **referenciando una elipse**:
+  - `id, simulacionId, elipseId, elipseVariableId, valor`
+
+> Consecuencia: el renderer debe unir geometría (`Elipse`) + valores (`ElipseValor`) por `elipseId`.
 
 ### Mapas (decisión A: 1 mapa por capa)
 
@@ -73,7 +81,7 @@ Archivo: `src/electron/backend/models.ts`
 
 ## Rutas IPC (canales) desarrolladas hasta ahora
 
-> En este backend no hay HTTP routes; las “rutas” son **canales IPC** (renderer → main).
+> En este backend no hay HTTP routes; las “rutas” son **canales IPC** (renderer → main).  
 > Contrato tipado en `types.d.ts` (`Window.electron` + `EventPayloadMapping`).
 
 ### Backend / Bootstrap
@@ -127,7 +135,7 @@ Al crear/upsertear `ValorEscenario`, el service:
   - tipos “producción/histórico” requieren al menos un valor en `petroleo`/`agua`/`gas`
   - en todos los casos, se exige **al menos una métrica no-null**
 
-> Nota: si se requiere precisión 100% determinística, se recomienda evolucionar `TipoEscenario` con `configJson` o flags explícitos (v6+).
+> Nota: si se requiere precisión 100% determinística, se recomienda evolucionar `TipoEscenario` con `configJson` o flags explícitos.
 
 ### Imports
 
@@ -136,6 +144,8 @@ Al crear/upsertear `ValorEscenario`, el service:
 
 - `importMapsDryRun(payload: MapImportPayload)` → `ImportJobResult`
 - `importMapsCommit(payload: MapImportPayload)` → `ImportJobResult`
+
+> Nota: aún no existe un import oficial para `Elipse` (geometría). Se crea vía IPC `ellipseCreate` o se agregará un import dedicado (`importEllipses*`) en una iteración futura.
 
 ### Maps
 
@@ -171,13 +181,30 @@ Al crear/upsertear `ValorEscenario`, el service:
 - `variableCreate(payload: CreateVariableInput)` → `Variable`
 - `variableListByUnidades(payload: { unidadesId: string })` → `Variable[]`
 
-### Ellipse
+### Ellipse (✅ actualizado)
+
+#### Variables de elipse
 
 - `ellipseVariableCreate(payload: CreateElipseVariableInput)` → `ElipseVariable`
 - `ellipseVariableList()` → `ElipseVariable[]`
 
-- `ellipseValueCreate(payload: CreateElipseValorInput)` → `ElipseValor`
+#### Geometría (tabla `Elipse`)
+
+- `ellipseCreate(payload: CreateElipseInput)` → `Elipse`
+- `ellipseListByLayer(payload: { capaId: string })` → `Elipse[]`
+- `ellipseListByProject(payload: { proyectoId: string })` → `Elipse[]`
+
+#### Valores (por simulación + variable + elipse)
+
+- `ellipseValueCreate(payload: CreateElipseValorInput)` → `ElipseValor`  
+  **Requiere** `elipseId`.
 - `ellipseValueListBySimulacion(payload: { simulacionId: string })` → `ElipseValor[]`
+
+#### Normalización
+
+- `elipsesNormalizationAll(payload: ElipsesNormalizationAllPayload)` →  
+  `{ ok: true; ranges } | { ok: false; error }`  
+  Donde `ranges` devuelve min/max por `elipseVariableId` (se calcula con `JOIN ElipseValor ⨝ Elipse`).
 
 ---
 
@@ -193,8 +220,7 @@ CRUD de `TipoEscenario` y `Escenario`.
 
 ### Scenario Values (`src/electron/modules/scenario-values`)
 
-Persistencia y consulta de `ValorEscenario` (valores por escenario).  
-Incluye:
+Persistencia y consulta de `ValorEscenario` (valores por escenario). Incluye:
 
 - UPSERT por llave compuesta
 - soporte de métricas nullable
@@ -214,7 +240,7 @@ Mapa 1:1 por capa, con `grupoVariableId` (+ adapter legacy).
 Dominio migrado a:
 
 - set estados por simulación
-- elipses por simulación
+- ✅ elipses con geometría persistida (`Elipse`) + valores (`ElipseValor`)
 - simulación sin `setEstadoPozosId` como fuente de verdad
 
 ---
@@ -228,13 +254,17 @@ Archivo: `src/electron/shared/db/migrations.ts`
 - v3: índices hardening
 - v4: refactor additive:
   - agrega columnas nuevas (`simulacionId`, `grupoVariableId`)
-  - backfills determinísticos
+  - backfills determinísticos donde se puede
   - índices de soporte
 - v5: **scenario precision**:
   - `TipoEscenario.nombre` único
   - `Escenario` único por `(proyectoId, nombre)`
   - reconstruye `ValorEscenario` para permitir métricas NULLABLE
   - agrega índices de consulta para `ValorEscenario`
+- ✅ v6: **elipses geometry**:
+  - crea tabla `Elipse`
+  - agrega `ElipseValor.elipseId`
+  - agrega índices para `Elipse` y `ElipseValor`
 
 ---
 
@@ -255,6 +285,15 @@ Smoke adicional (escenarios):
 8. `scenarioCreate(...)` / `scenarioListByProject({ proyectoId })`
 9. `scenarioValueCreate(...)` (UPSERT) + `scenarioValueListByEscenario({ escenarioId })`
 
+Smoke adicional (elipses):
+
+10. `ellipseCreate(...)` (crear geometría)
+11. `ellipseListByLayer({ capaId })`
+12. `ellipseVariableCreate(...)` / `ellipseVariableList()`
+13. `ellipseValueCreate(...)` (requiere `elipseId`)
+14. `ellipseValueListBySimulacion({ simulacionId })`
+15. `elipsesNormalizationAll(...)`
+
 ---
 
 ## Legacy / pendiente (deuda técnica controlada)
@@ -263,17 +302,18 @@ Smoke adicional (escenarios):
 
 - Tabla/módulo `VariableMapa` (deprecado)
 - Tabla legacy `Produccion` (deprecada; el dominio v2 usa `Escenario/ValorEscenario`)
-- Columnas legacy:
+- Columnas legacy (a remover en rebuild final):
   - `Simulacion.setEstadoPozosId`
   - `SetEstadoPozos.proyectoId`
-  - `ElipseValor.proyectoId`
-  - `Mapa.variableMapaId`
+  - `ElipseValor.proyectoId` (⚠️ legacy de v1; el dominio v2 usa `simulacionId + elipseId`)
+  - `Mapa.variableMapaId` (adapter legacy)
 
 ### Cleanup final (futuro)
 
-Migración de rebuild (v6) para eliminar legacy + enforce real:
+Migración de rebuild (v7+) para eliminar legacy + enforce real:
 
 - `UNIQUE(SetEstadoPozos.simulacionId)` (enforce 1:1)
+- `ElipseValor.elipseId NOT NULL` + `UNIQUE(simulacionId, elipseId, elipseVariableId)` (cuando haya backfill/flujo de carga completo)
 - drop `VariableMapa`
 - drop `Produccion`
 - drop columnas legacy

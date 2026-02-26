@@ -285,7 +285,10 @@ declare global {
 
       // ✅ NUEVO: geometría (tabla Elipse)
       ellipseCreate: (payload: CreateElipseInput) => Promise<Elipse>;
-      ellipseListByLayer: (payload: { capaId: string }) => Promise<Elipse[]>;
+      ellipseListByLayer: (payload: {
+        simulacionId: string;
+        capaId: string;
+      }) => Promise<Elipse[]>;
       ellipseListByProject: (payload: {
         proyectoId: string;
       }) => Promise<Elipse[]>;

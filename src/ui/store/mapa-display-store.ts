@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import type { PozoPoint, Elipse } from "../types/mapa";
-import type { ProduccionPozo } from "../types/produccion";
 
 export type MapKey = string;
 
@@ -22,9 +21,11 @@ export type MapaDisplayedSnapshot = {
   elipses: Elipse[];
   elipseVariables: string[];
 
-  // ✅ Producción asociada a capa + fecha
-  produccion: ProduccionPozo[];
-
+  /**
+   * ⚠️ v2: "producción" como entidad ya no existe.
+   * Si tu UI todavía la usa, migrala a Escenario/ValorEscenario en otro paso.
+   * Por ahora la sacamos del snapshot para que el store refleje el modelo nuevo.
+   */
   updatedAt: number;
 };
 

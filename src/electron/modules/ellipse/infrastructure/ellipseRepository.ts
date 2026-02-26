@@ -15,12 +15,9 @@ function mapVariable(row: Record<string, unknown>): ElipseVariable {
 }
 
 function mapElipse(row: Record<string, unknown>): Elipse {
-  // DuckDB puede devolver listas como arrays JS o como string JSON según driver.
-  // Soportamos ambos.
   const parseList = (v: unknown): number[] => {
     if (Array.isArray(v)) return v.map(Number);
     if (typeof v === "string") {
-      // puede venir como JSON string
       const parsed = JSON.parse(v);
       if (Array.isArray(parsed)) return parsed.map(Number);
     }
@@ -30,6 +27,7 @@ function mapElipse(row: Record<string, unknown>): Elipse {
   return {
     id: String(row.id),
     proyectoId: String(row.proyectoId),
+    simulacionId: row.simulacionId == null ? null : String(row.simulacionId),
     capaId: String(row.capaId),
     pozoInyectorId:
       row.pozoInyectorId == null ? null : String(row.pozoInyectorId),
@@ -45,10 +43,11 @@ function mapElipse(row: Record<string, unknown>): Elipse {
 function mapValor(row: Record<string, unknown>): ElipseValor {
   return {
     id: String(row.id),
-    simulacionId: String(row.simulacionId),
     elipseId: String(row.elipseId),
     elipseVariableId: String(row.elipseVariableId),
     valor: Number(row.valor),
+    createdAt: String(row.createdAt),
+    updatedAt: String(row.updatedAt),
   };
 }
 
@@ -81,18 +80,19 @@ export class EllipseRepository {
   }
 
   // =========================
-  // ✅ ELIPSE (geometría)
+  // ✅ ELIPSE (geometría por simulación)
   // =========================
   async createElipse(input: CreateElipseInput): Promise<Elipse> {
     const now = new Date().toISOString();
 
     await databaseService.run(
       `INSERT INTO Elipse
-       (id, proyectoId, capaId, pozoInyectorId, pozoProductorId, x, y, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, proyectoId, simulacionId, capaId, pozoInyectorId, pozoProductorId, x, y, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         input.id,
         input.proyectoId,
+        input.simulacionId,
         input.capaId,
         input.pozoInyectorId ?? null,
         input.pozoProductorId ?? null,
@@ -104,7 +104,7 @@ export class EllipseRepository {
     );
 
     const rows = await databaseService.readAll(
-      `SELECT id, proyectoId, capaId, pozoInyectorId, pozoProductorId, x, y, createdAt, updatedAt
+      `SELECT id, proyectoId, simulacionId, capaId, pozoInyectorId, pozoProductorId, x, y, createdAt, updatedAt
        FROM Elipse WHERE id = ? LIMIT 1`,
       [input.id],
     );
@@ -113,20 +113,23 @@ export class EllipseRepository {
     return mapElipse(rows[0]);
   }
 
-  async listElipsesByLayer(capaId: string): Promise<Elipse[]> {
+  async listElipsesByLayer(
+    simulacionId: string,
+    capaId: string,
+  ): Promise<Elipse[]> {
     const rows = await databaseService.readAll(
-      `SELECT id, proyectoId, capaId, pozoInyectorId, pozoProductorId, x, y, createdAt, updatedAt
+      `SELECT id, proyectoId, simulacionId, capaId, pozoInyectorId, pozoProductorId, x, y, createdAt, updatedAt
        FROM Elipse
-       WHERE capaId = ?
+       WHERE simulacionId = ? AND capaId = ?
        ORDER BY id ASC`,
-      [capaId],
+      [simulacionId, capaId],
     );
     return rows.map(mapElipse);
   }
 
   async listElipsesByProject(proyectoId: string): Promise<Elipse[]> {
     const rows = await databaseService.readAll(
-      `SELECT id, proyectoId, capaId, pozoInyectorId, pozoProductorId, x, y, createdAt, updatedAt
+      `SELECT id, proyectoId, simulacionId, capaId, pozoInyectorId, pozoProductorId, x, y, createdAt, updatedAt
        FROM Elipse
        WHERE proyectoId = ?
        ORDER BY capaId ASC, id ASC`,
@@ -136,22 +139,20 @@ export class EllipseRepository {
   }
 
   // =========================
-  // ✅ VALORES
+  // ✅ VALORES (depende de Elipse)
   // =========================
   async createValor(input: CreateElipseValorInput): Promise<ElipseValor> {
+    const now = new Date().toISOString();
+
     await databaseService.run(
-      "INSERT INTO ElipseValor (id, simulacionId, elipseId, elipseVariableId, valor) VALUES (?, ?, ?, ?, ?)",
-      [
-        input.id,
-        input.simulacionId,
-        input.elipseId,
-        input.elipseVariableId,
-        input.valor,
-      ],
+      `INSERT INTO ElipseValor (id, elipseId, elipseVariableId, valor, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [input.id, input.elipseId, input.elipseVariableId, input.valor, now, now],
     );
 
     const rows = await databaseService.readAll(
-      "SELECT id, simulacionId, elipseId, elipseVariableId, valor FROM ElipseValor WHERE id = ? LIMIT 1",
+      `SELECT id, elipseId, elipseVariableId, valor, createdAt, updatedAt
+       FROM ElipseValor WHERE id = ? LIMIT 1`,
       [input.id],
     );
 
@@ -159,37 +160,43 @@ export class EllipseRepository {
     return mapValor(rows[0]);
   }
 
+  /**
+   * Compat: mantenemos "listBySimulacion" pero ahora es JOIN con Elipse
+   */
   async listValoresBySimulacion(simulacionId: string): Promise<ElipseValor[]> {
     const rows = await databaseService.readAll(
-      "SELECT id, simulacionId, elipseId, elipseVariableId, valor FROM ElipseValor WHERE simulacionId = ? ORDER BY id ASC",
+      `
+      SELECT ev.id, ev.elipseId, ev.elipseVariableId, ev.valor, ev.createdAt, ev.updatedAt
+      FROM ElipseValor ev
+      JOIN Elipse e ON e.id = ev.elipseId
+      WHERE e.simulacionId = ?
+      ORDER BY ev.id ASC
+      `,
       [simulacionId],
     );
     return rows.map(mapValor);
   }
 
   // =========================
-  // ✅ NORMALIZACIÓN (min/max por variable, con universo Elipse ⨝ ElipseValor)
+  // ✅ NORMALIZACIÓN (min/max por variable)
   // =========================
   async elipsesNormalizationAll(args: {
     proyectoId: string;
     scope: "layer_date" | "layer_all" | "field_date" | "field_all";
-    capa: string | null; // hoy llega como capaNombre (según tu payload)
+    capa: string | null; // capaNombre
     fecha: string | null;
-  }): Promise<
-    Record<
-      string,
-      {
-        min: number;
-        max: number;
-      }
-    >
-  > {
-    const { proyectoId, scope, capa, fecha } = args;
+    simulacionId?: string | null;
+  }): Promise<Record<string, { min: number; max: number }>> {
+    const { proyectoId, scope, capa, fecha, simulacionId } = args;
 
-    // ⚠️ Nota: hoy payload.capa viene como "capaNombre" (según tu comentario).
-    // Si querés que sea por capaId, cambiá el payload y esto se simplifica.
     const whereParts: string[] = ["e.proyectoId = ?"];
     const params: unknown[] = [proyectoId];
+
+    // ✅ si te pasan simulacionId, filtramos universo por simulación
+    if (simulacionId) {
+      whereParts.push("e.simulacionId = ?");
+      params.push(simulacionId);
+    }
 
     if (scope === "layer_date" || scope === "layer_all") {
       if (!capa)
@@ -198,16 +205,13 @@ export class EllipseRepository {
       params.push(capa);
     }
 
-    // fecha actualmente NO está en Elipse, y ElipseValor tampoco la tiene.
-    // Así que field_date/layer_date solo puede interpretarse vía “simulación activa”
-    // o un filtro externo. Por ahora: validamos y seguimos (no filtramos por fecha).
+    // fecha sigue siendo no-aplicable al modelo de elipses (no hay fecha en elipse/valor).
     if ((scope === "layer_date" || scope === "field_date") && fecha) {
-      // no-op por diseño actual
+      // no-op (documentado)
     }
 
     const where = whereParts.length ? `WHERE ${whereParts.join(" AND ")}` : "";
 
-    // Calcula min/max por elipseVariableId, solo para valores que tengan geometría existente.
     const rows = await databaseService.readAll(
       `
       SELECT
