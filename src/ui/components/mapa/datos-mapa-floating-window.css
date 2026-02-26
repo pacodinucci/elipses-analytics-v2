@@ -1,0 +1,126 @@
+.datosMapa {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  height: 100%;
+  min-height: 0;
+  margin: 0 -12px;
+}
+
+.datosMapa__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.datosMapa__tab {
+  font-size: 12px;
+  padding: 4px 12px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  background: white;
+  cursor: pointer;
+}
+
+.datosMapa__tab.is-active {
+  background: #0f172a;
+  color: white;
+  border-color: #0f172a;
+}
+
+.datosMapa__spacer {
+  flex: 1;
+}
+
+.datosMapa__search {
+  width: 240px;
+  max-width: 60%;
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+}
+
+.datosMapa__clear {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  border: 1px solid #cbd5e1;
+  background: white;
+  cursor: pointer;
+}
+
+.datosMapa__clear:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.datosMapa__empty {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.datosMapa__tableWrap {
+  flex: 1;
+  min-height: 0;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  overflow: auto;
+
+  /* ✅ Scrollbar minimizada */
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: rgba(0, 0, 0, 0.22) transparent; /* Firefox */
+  scrollbar-gutter: stable both-edges; /* evita “saltos” al aparecer */
+}
+
+/* ✅ Chrome / Electron (WebKit) */
+.datosMapa__tableWrap::-webkit-scrollbar {
+  width: 4px; /* vertical */
+  height: 4px; /* horizontal */
+}
+
+.datosMapa__tableWrap::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.datosMapa__tableWrap::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.14);
+  border-radius: 999px;
+  border: 1px solid transparent; /* afina visualmente */
+  background-clip: content-box;
+}
+
+.datosMapa__tableWrap:hover::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.28);
+  background-clip: content-box;
+}
+
+.datosMapa__table {
+  width: 100%;
+  font-size: 12px;
+  border-collapse: collapse;
+}
+
+.datosMapa__table thead {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
+}
+
+.datosMapa__table th,
+.datosMapa__table td {
+  padding: 4px 8px;
+  border-bottom: 1px solid #e2e8f0;
+  text-align: left;
+  font-family: monospace;
+}
+
+.datosMapa__table tr:hover {
+  background: #f8fafc;
+}
+
+.datosMapa__noData {
+  padding: 8px;
+  color: #64748b;
+}

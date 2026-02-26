@@ -1,0 +1,200 @@
+/* Clases para OptionsShellModal (reemplazan Tailwind width/height/grid) */
+.mapOptions__w {
+  width: 980px;
+  max-width: 96vw;
+}
+
+.mapOptions__h {
+  height: 720px;
+  max-height: 90vh;
+}
+
+/* OJO: esto asume que OptionsShellModal aplica esta clase a un grid wrapper */
+.mapOptions__grid {
+  grid-template-columns: 280px 1fr;
+}
+
+/* Footer */
+.mapOptions__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Botones (si no tenés btn global, estos ayudan igual) */
+.mapOptions__btn,
+.mapOptions__btnSmall {
+  font-size: 11px;
+  line-height: 1;
+  padding: 6px 10px;
+}
+
+/* Layout */
+.mapOptions__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.mapOptions__stack--tight {
+  gap: 6px;
+}
+
+.mapOptions__card {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.mapOptions__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Textos */
+.mapOptions__h11 {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.9);
+}
+
+.mapOptions__p10 {
+  font-size: 10px;
+  color: rgba(15, 23, 42, 0.55);
+  line-height: 1.35;
+  margin-top: 4px;
+}
+
+.mapOptions__label10 {
+  font-size: 10px;
+  color: rgba(15, 23, 42, 0.65);
+}
+
+/* Inputs */
+.mapOptions__checkbox {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.mapOptions__radioList {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.mapOptions__radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(51, 65, 85, 1);
+}
+
+.mapOptions__section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mapOptions__input {
+  border: 1px solid rgba(148, 163, 184, 1);
+  border-radius: 10px;
+  padding: 6px 8px;
+  font-size: 11px;
+  background: #fff;
+}
+
+.mapOptions__input--full {
+  width: 100%;
+}
+
+.mapOptions__input--disabled:disabled {
+  background: rgba(248, 250, 252, 1);
+  color: rgba(15, 23, 42, 0.55);
+}
+
+.mapOptions__select {
+  border: 1px solid rgba(148, 163, 184, 1);
+  border-radius: 10px;
+  padding: 6px 8px;
+  font-size: 11px;
+  background: #fff;
+}
+
+/* Stops */
+.mapOptions__stopsHeader {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.55);
+}
+
+.mapOptions__col {
+  width: 33.333%;
+}
+
+.mapOptions__col--right {
+  text-align: right;
+}
+
+.mapOptions__stopRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mapOptions__color {
+  width: 33.333%;
+  height: 32px;
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.mapOptions__actions {
+  width: 33.333%;
+  display: flex;
+  justify-content: flex-end;
+}
+
+/* Transparencia */
+.mapOptions__grid2 {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.mapOptions__grid2--top {
+  align-items: flex-start;
+}
+
+.mapOptions__gridCols2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.mapOptions__field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.mapOptions__colorSmall {
+  height: 32px;
+  width: 80px;
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+.mapOptions__range {
+  width: 100%;
+}

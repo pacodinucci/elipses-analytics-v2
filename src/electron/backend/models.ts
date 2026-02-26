@@ -123,11 +123,16 @@ export interface ValorEscenario {
   pozoId: ID;
   capaId: ID;
   fecha: string;
-  petroleo: number;
-  agua: number;
-  gas: number;
-  inyeccionGas: number;
-  inyeccionAgua: number;
+
+  /**
+   * ✅ v5+ (scenario_precision): métricas pueden ser NULL según tipoEscenario.
+   */
+  petroleo: number | null;
+  agua: number | null;
+  gas: number | null;
+  inyeccionGas: number | null;
+  inyeccionAgua: number | null;
+
   createdAt: string;
   updatedAt: string;
 }
@@ -137,9 +142,31 @@ export interface ElipseVariable {
   nombre: string;
 }
 
+/**
+ * ✅ NUEVO (dominio v2): Geometría de elipses por proyecto/capa.
+ * x/y representan el contorno sampleado (polígono) en coordenadas del mapa.
+ */
+export interface Elipse {
+  id: ID;
+  proyectoId: ID;
+  capaId: ID;
+  pozoInyectorId: ID | null;
+  pozoProductorId: ID | null;
+  x: number[];
+  y: number[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+/**
+ * ✅ MODIFICADO (dominio v2): ElipseValor ahora referencia a Elipse por elipseId.
+ * Nota: la tabla en DB todavía puede contener columnas legacy (proyectoId, etc.)
+ * pero el dominio v2 usa estas.
+ */
 export interface ElipseValor {
   id: ID;
   simulacionId: ID;
+  elipseId: ID;
   elipseVariableId: ID;
   valor: number;
 }
@@ -180,7 +207,13 @@ export interface Mapa {
   grupoVariableId: ID;
   xedges: number[];
   yedges: number[];
-  grid: number[][];
+
+  /**
+   * Recomendado si tu grid puede tener nulls.
+   * Si estás 100% seguro que nunca hay null, podés dejar number[][].
+   */
+  grid: (number | null)[][];
+
   createdAt: string;
   updatedAt: string;
 }

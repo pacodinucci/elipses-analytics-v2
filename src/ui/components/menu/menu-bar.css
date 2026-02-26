@@ -1,0 +1,15 @@
+/* src/components/menu/menu-bar.css */
+
+.menuBar {
+  width: 100%;
+  height: 32px; /* h-8 */
+  display: flex;
+  align-items: center;
+  gap: 8px; /* gap-2 */
+  padding: 0 8px; /* px-2 */
+
+  background: #f0f0f0;
+  border-bottom: 1px solid #cbd5e1; /* slate-300 */
+
+  user-select: none;
+}

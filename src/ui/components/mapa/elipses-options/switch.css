@@ -1,0 +1,63 @@
+.elipsesOpt__switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+  cursor: pointer;
+}
+
+.elipsesOpt__switch.is-disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.elipsesOpt__switch > input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+  pointer-events: none;
+}
+
+.elipsesOpt__switchTrack {
+  width: 36px;
+  height: 20px;
+  border-radius: 999px;
+  background: #e2e8f0;
+  border: 1px solid #cbd5e1;
+  position: relative;
+  display: inline-block;
+  transition:
+    background 150ms ease,
+    border-color 150ms ease;
+}
+
+.elipsesOpt__switchThumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  background: white;
+  border: 1px solid #cbd5e1;
+  position: absolute;
+  top: 1px;
+  left: 1px;
+  transition: transform 150ms ease;
+}
+
+.elipsesOpt__switch > input:checked + .elipsesOpt__switchTrack {
+  background: #0f172a;
+  border-color: #0f172a;
+}
+
+.elipsesOpt__switch
+  > input:checked
+  + .elipsesOpt__switchTrack
+  .elipsesOpt__switchThumb {
+  transform: translateX(16px);
+  border-color: #0f172a;
+}
+
+.elipsesOpt__switchLabel {
+  font-size: 12px;
+  color: #0f172a;
+}

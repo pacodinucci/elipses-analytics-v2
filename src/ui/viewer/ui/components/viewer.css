@@ -1,0 +1,9 @@
+.viewerOverlay {
+  opacity: 1;
+  transition: opacity 180ms ease;
+  will-change: opacity;
+}
+
+.viewerOverlay.is-hidden {
+  opacity: 0;
+}

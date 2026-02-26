@@ -1,0 +1,18 @@
+{
+  "appId": "com.elipses-analytics.app",
+  "productName": "elipses-analytics",
+  "directories": {
+    "output": "dist"
+  },
+  "files": ["dist-electron/**", "dist-react/**", "package.json"],
+  "win": {
+    "target": "nsis",
+    "icon": "src/assets/icon.png"
+  },
+  "nsis": {
+    "oneClick": false,
+    "perMachine": false,
+    "allowToChangeInstallationDirectory": true
+  },
+  "extraResources": [{ "from": "src/assets", "to": "assets" }]
+}

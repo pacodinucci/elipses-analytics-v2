@@ -229,6 +229,97 @@ const domainRefactorV4Statements = [
   `CREATE INDEX IF NOT EXISTS ix_mapa_grupoVariableId ON Mapa(grupoVariableId)`,
 ];
 
+/**
+ * v5: precisión del modelo de escenarios
+ * - TipoEscenario.nombre único
+ * - Escenario único por (proyectoId, nombre)
+ * - ValorEscenario: métricas NULLABLE (según tipoEscenario)
+ *
+ * Nota: en DuckDB es más robusto reconstruir la tabla para remover NOT NULL.
+ */
+const scenarioPrecisionV5Statements = [
+  // uniques (como índices para compat DuckDB)
+  `CREATE UNIQUE INDEX IF NOT EXISTS ux_tipoescenario_nombre ON TipoEscenario(nombre)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS ux_escenario_proyecto_nombre ON Escenario(proyectoId, nombre)`,
+
+  // reconstruir ValorEscenario con columnas NULLABLE
+  `CREATE TABLE IF NOT EXISTS ValorEscenario__v2 (
+    id VARCHAR PRIMARY KEY,
+    escenarioId VARCHAR NOT NULL REFERENCES Escenario(id),
+    pozoId VARCHAR NOT NULL REFERENCES Pozo(id),
+    capaId VARCHAR NOT NULL REFERENCES Capa(id),
+    fecha DATE NOT NULL,
+
+    petroleo DOUBLE,
+    agua DOUBLE,
+    gas DOUBLE,
+    inyeccionGas DOUBLE,
+    inyeccionAgua DOUBLE,
+
+    createdAt TIMESTAMP NOT NULL,
+    updatedAt TIMESTAMP NOT NULL,
+
+    UNIQUE(escenarioId, pozoId, capaId, fecha)
+  )`,
+
+  // copiar datos existentes
+  `INSERT INTO ValorEscenario__v2
+   (id, escenarioId, pozoId, capaId, fecha, petroleo, agua, gas, inyeccionGas, inyeccionAgua, createdAt, updatedAt)
+   SELECT id, escenarioId, pozoId, capaId, fecha, petroleo, agua, gas, inyeccionGas, inyeccionAgua, createdAt, updatedAt
+   FROM ValorEscenario`,
+
+  // swap
+  `DROP TABLE ValorEscenario`,
+  `ALTER TABLE ValorEscenario__v2 RENAME TO ValorEscenario`,
+
+  // índices útiles de consulta
+  `CREATE INDEX IF NOT EXISTS ix_valorescenario_escenario_capa_fecha ON ValorEscenario(escenarioId, capaId, fecha)`,
+  `CREATE INDEX IF NOT EXISTS ix_valorescenario_escenario_pozo ON ValorEscenario(escenarioId, pozoId)`,
+];
+
+/**
+ * v6: Elipses (geometría + vínculo ElipseValor.elipseId)
+ * - Crea tabla Elipse (geometría por proyecto/capa, opcionalmente vinculada a pozos)
+ * - ElipseValor: agrega elipseId (FK lógica al dominio v2; se endurece más adelante)
+ *
+ * Nota: additive. No dropeamos columnas legacy aquí.
+ */
+const elipsesGeometryV6Statements = [
+  // 1) tabla de geometría
+  `CREATE TABLE IF NOT EXISTS Elipse (
+    id VARCHAR PRIMARY KEY,
+    proyectoId VARCHAR NOT NULL REFERENCES Proyecto(id),
+    capaId VARCHAR NOT NULL REFERENCES Capa(id),
+    pozoInyectorId VARCHAR REFERENCES Pozo(id),
+    pozoProductorId VARCHAR REFERENCES Pozo(id),
+
+    -- contorno (polígono sampleado)
+    x DOUBLE[] NOT NULL,
+    y DOUBLE[] NOT NULL,
+
+    createdAt TIMESTAMP NOT NULL,
+    updatedAt TIMESTAMP NOT NULL,
+
+    CHECK (array_length(x) = array_length(y)),
+    CHECK (array_length(x) >= 3)
+  )`,
+
+  // 2) columna nueva en ElipseValor
+  `ALTER TABLE ElipseValor ADD COLUMN elipseId VARCHAR`,
+
+  // 3) índices de soporte
+  `CREATE INDEX IF NOT EXISTS ix_elipse_proyecto_capa ON Elipse(proyectoId, capaId)`,
+  `CREATE INDEX IF NOT EXISTS ix_elipse_capaId ON Elipse(capaId)`,
+  `CREATE INDEX IF NOT EXISTS ix_elipse_pozoInyectorId ON Elipse(pozoInyectorId)`,
+  `CREATE INDEX IF NOT EXISTS ix_elipse_pozoProductorId ON Elipse(pozoProductorId)`,
+
+  `CREATE INDEX IF NOT EXISTS ix_elipsevalor_elipseId ON ElipseValor(elipseId)`,
+  `CREATE INDEX IF NOT EXISTS ix_elipsevalor_sim_var ON ElipseValor(simulacionId, elipseVariableId)`,
+
+  // unique “ideal” (lo dejamos para v7 cuando elipseId sea NOT NULL)
+  // `CREATE UNIQUE INDEX IF NOT EXISTS ux_elipsevalor_sim_elipse_var ON ElipseValor(simulacionId, elipseId, elipseVariableId)`
+];
+
 export const migrations: Migration[] = [
   {
     version: 1,
@@ -249,5 +340,15 @@ export const migrations: Migration[] = [
     version: 4,
     name: "domain_refactor_additive_v4",
     statements: domainRefactorV4Statements,
+  },
+  {
+    version: 5,
+    name: "scenario_precision_v5",
+    statements: scenarioPrecisionV5Statements,
+  },
+  {
+    version: 6,
+    name: "elipses_geometry_v6",
+    statements: elipsesGeometryV6Statements,
   },
 ];

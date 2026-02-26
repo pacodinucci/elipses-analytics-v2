@@ -1,0 +1,83 @@
+/* src/components/menu/ver-menu.css */
+
+.verMenu {
+  position: relative;
+}
+
+/* ---------- Title ---------- */
+
+.verMenu__title {
+  padding: 4px 12px;
+  font-size: 14px;
+  cursor: pointer;
+  border-radius: 4px;
+}
+
+.verMenu__title:hover {
+  background: #e1e1e1;
+}
+
+/* ---------- Dropdown ---------- */
+
+.verMenu__dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+
+  width: 224px; /* w-56 */
+  background: #ffffff;
+
+  border: 1px solid #cbd5e1; /* slate-300 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+
+  padding: 4px 0;
+  z-index: 50;
+}
+
+/* ---------- Items ---------- */
+
+.verMenu__item {
+  padding: 4px 12px;
+  font-size: 14px;
+  cursor: pointer;
+
+  display: flex;
+  align-items: center;
+}
+
+.verMenu__item:hover {
+  background: #e7e7e7;
+}
+
+.verMenu__check {
+  display: inline-block;
+  width: 16px; /* w-4 */
+  margin-right: 4px;
+}
+
+.verMenu__label {
+  display: inline-block;
+}
+
+/* ---------- Group / Disabled (para posición de barra de capas) ---------- */
+
+.verMenu__group {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid #cbd5e1; /* mismo borde que el dropdown */
+}
+
+.verMenu__groupTitle {
+  padding: 4px 12px;
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.65);
+}
+
+.verMenu__item.is-disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.verMenu__item.is-disabled:hover {
+  background: transparent;
+}

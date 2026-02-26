@@ -1,0 +1,166 @@
+/* src/components/import/import-modal.css */
+
+.importModal__footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.importModal__col {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 2px;
+}
+
+.importModal__hint {
+  font-size: 13px;
+  line-height: 1.4;
+  padding: 10px 12px;
+  border: 1px solid #e2e8f0;
+  background: #f8fafc;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.importModal__warn {
+  color: #b45309;
+}
+
+.importModal__path {
+  word-break: break-all;
+}
+
+.importModal__box {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 12px;
+  background: white;
+}
+
+.importModal__boxTitle {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.importModal__row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.importModal__label {
+  width: 90px;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.importModal__select,
+.importModal__input {
+  flex: 1;
+  font-size: 13px;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  outline: none;
+}
+
+.importModal__actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.importModal__btn {
+  font-size: 13px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  cursor: pointer;
+}
+
+.importModal__btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.importModal__btnPrimary {
+  background: #0f172a;
+  color: white;
+  border-color: #0f172a;
+}
+
+.importModal__error {
+  font-size: 13px;
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #991b1b;
+  padding: 10px 12px;
+  border-radius: 8px;
+}
+
+.importModal__ok {
+  font-size: 13px;
+  border: 1px solid #bbf7d0;
+  background: #f0fdf4;
+  color: #166534;
+  padding: 10px 12px;
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.importModal__p {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.importModal__pre {
+  margin: 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: #0b1020;
+  color: #e2e8f0;
+  font-size: 12px;
+  overflow: auto;
+}
+
+.importModal__kv {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 6px 10px;
+  font-size: 13px;
+}
+
+.importModal__warnings {
+  border-top: 1px solid #e2e8f0;
+  padding-top: 10px;
+}
+
+.importModal__warningItem {
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.importModal__textarea {
+  width: 100%;
+  min-height: 240px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid #cbd5e1;
+  outline: none;
+  font-size: 12px;
+  line-height: 1.4;
+  resize: vertical;
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+}
