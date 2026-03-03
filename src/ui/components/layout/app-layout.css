@@ -1,0 +1,16 @@
+/* src/components/layout/app-layout.css */
+
+.appLayout {
+  width: 100%;
+  height: 100vh; /* equivalente a h-screen */
+  display: flex;
+  flex-direction: column;
+  background: #f8fafc; /* slate-50 */
+  overflow: hidden; /* evita scroll doble (lo maneja content) */
+}
+
+.appLayout__content {
+  flex: 1;
+  min-height: 0; /* CLAVE: permite que overflow funcione en flex */
+  overflow: auto;
+}

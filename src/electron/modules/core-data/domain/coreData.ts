@@ -1,3 +1,5 @@
+// src/electron/modules/core-data/domain/coreData.ts
+
 export interface CreateProyectoInput {
   id: string;
   nombre: string;
@@ -14,7 +16,7 @@ export interface CreateProyectoInput {
   grillaCellSizeX: number;
   grillaCellSizeY: number;
   grillaUnidad: string;
-  unidadesId: string;
+  // ✅ v9: NO unidadesId
 }
 
 export interface CreateProyectoBootstrapInput {
@@ -29,11 +31,6 @@ export interface CreateProyectoBootstrapInput {
   grillaNx: number;
   grillaNy: number;
   grillaUnidad: string;
-}
-
-export interface CreateUnidadesInput {
-  id: string;
-  proyectoId: string;
 }
 
 export interface CreateCapaInput {
@@ -79,7 +76,6 @@ export function validateCreateProyectoInput(input: CreateProyectoInput): void {
   requireString(input.limitesTemporalHasta, "limitesTemporalHasta");
   requireString(input.arealCRS, "arealCRS");
   requireString(input.grillaUnidad, "grillaUnidad");
-  requireString(input.unidadesId, "unidadesId");
 
   requireFiniteNumber(input.arealMinX, "arealMinX");
   requireFiniteNumber(input.arealMinY, "arealMinY");
@@ -91,7 +87,9 @@ export function validateCreateProyectoInput(input: CreateProyectoInput): void {
   requireFiniteNumber(input.grillaCellSizeY, "grillaCellSizeY");
 }
 
-export function validateCreateProyectoBootstrapInput(input: CreateProyectoBootstrapInput): void {
+export function validateCreateProyectoBootstrapInput(
+  input: CreateProyectoBootstrapInput,
+): void {
   requireString(input.nombre, "nombre");
   requireString(input.limitesTemporalDesde, "limitesTemporalDesde");
   requireString(input.limitesTemporalHasta, "limitesTemporalHasta");
@@ -108,19 +106,12 @@ export function validateCreateProyectoBootstrapInput(input: CreateProyectoBootst
   if (input.arealMaxX <= input.arealMinX) {
     throw new Error("arealMaxX must be greater than arealMinX");
   }
-
   if (input.arealMaxY <= input.arealMinY) {
     throw new Error("arealMaxY must be greater than arealMinY");
   }
-
   if (input.grillaNx <= 0 || input.grillaNy <= 0) {
     throw new Error("grid dimensions must be greater than zero");
   }
-}
-
-export function validateCreateUnidadesInput(input: CreateUnidadesInput): void {
-  requireString(input.id, "id");
-  requireString(input.proyectoId, "proyectoId");
 }
 
 export function validateCreateCapaInput(input: CreateCapaInput): void {

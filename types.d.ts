@@ -5,7 +5,6 @@ declare global {
   // ============================================================
   // ✅ UI legacy rows (DTOs del front) — para mantener DX de v1
   // ============================================================
-
   type ProyectoRow = {
     id: string;
     nombre: string;
@@ -87,13 +86,9 @@ declare global {
     import("./src/electron/backend/models.js").ElipseVariable;
   type ElipseValor = import("./src/electron/backend/models.js").ElipseValor;
 
-  // ✅ NUEVO: Elipse (geometría)
   type Elipse = import("./src/electron/backend/models.js").Elipse;
-
-  /**
-   * ⚠️ Legacy: se elimina cuando removamos el módulo variable-mapa y la tabla VariableMapa.
-   */
   type VariableMapa = import("./src/electron/backend/models.js").VariableMapa;
+
 
   // ============================================================
   // ✅ Imports domain (v2)
@@ -140,8 +135,7 @@ declare global {
   type CreateProyectoBootstrapInput =
     import("./src/electron/modules/core-data/domain/coreData.js").CreateProyectoBootstrapInput;
 
-  type CreateUnidadesInput =
-    import("./src/electron/modules/core-data/domain/coreData.js").CreateUnidadesInput;
+  // ❌ CreateUnidadesInput removido (ya no existe en core-data)
   type CreateCapaInput =
     import("./src/electron/modules/core-data/domain/coreData.js").CreateCapaInput;
   type CreatePozoInput =
@@ -163,38 +157,216 @@ declare global {
     import("./src/electron/modules/variables/domain/variables.js").CreateGrupoVariableInput;
   type CreateVariableInput =
     import("./src/electron/modules/variables/domain/variables.js").CreateVariableInput;
+  type UpsertUnidadInput =
+    import("./src/electron/modules/variables/domain/variables.js").UpsertUnidadInput;
 
   type CreateElipseVariableInput =
     import("./src/electron/modules/ellipse/domain/ellipse.js").CreateElipseVariableInput;
   type CreateElipseValorInput =
     import("./src/electron/modules/ellipse/domain/ellipse.js").CreateElipseValorInput;
 
-  // ✅ NUEVO: CreateElipseInput (geometría)
   type CreateElipseInput =
     import("./src/electron/modules/ellipse/domain/ellipse.js").CreateElipseInput;
 
-  // ✅ NUEVO: payload normalización (tipado desde módulo)
   type ElipsesNormalizationAllPayload =
     import("./src/electron/modules/ellipse/interfaces/ipc.js").ElipsesNormalizationAllPayload;
 
-  /**
-   * Legacy (se elimina cuando removamos el módulo variable-mapa)
-   */
-  type CreateVariableMapaInput =
-    import("./src/electron/modules/variable-mapa/domain/variableMapa.js").CreateVariableMapaInput;
-
-  // ✅ alias cómodo
   type Unsubscribe = () => void;
 
   // ============================================================
-  // Window.electron (API expuesta por preload)  ✅ AHORA GLOBAL
+  // ✅ Dynamic Fields (defs + extrasJson)
+  // ============================================================
+  type DynamicEntity =
+    | "Proyecto"
+    | "Unidades"
+    | "GrupoVariable"
+    | "Variable"
+    | "Capa"
+    | "Pozo"
+    | "PozoCapa"
+    | "TipoEscenario"
+    | "Escenario"
+    | "ValorEscenario"
+    | "TipoSimulacion"
+    | "Simulacion"
+    | "TipoEstadoPozo"
+    | "SetEstadoPozos"
+    | "SetEstadoPozosDetalle"
+    | "VariableMapa"
+    | "Mapa"
+    | "ElipseVariable"
+    | "Elipse"
+    | "ElipseValor"
+    | "import_jobs"
+    | "import_job_errors";
+
+  type DynamicFieldDataType =
+    | "number"
+    | "string"
+    | "boolean"
+    | "date"
+    | "enum"
+    | "json";
+
+  type DynamicFieldDef = {
+    id: string;
+    entity: DynamicEntity;
+    key: string;
+    dataType: DynamicFieldDataType;
+    label: string | null;
+    unit: string | null;
+    configJson: Record<string, unknown>;
+    createdAt: string;
+    updatedAt: string;
+  };
+
+  type DynamicFieldsListDefsPayload = { entity: DynamicEntity };
+
+  type DynamicFieldsCreateDefPayload = {
+    entity: DynamicEntity;
+    key: string;
+    dataType: DynamicFieldDataType;
+    label?: string | null;
+    unit?: string | null;
+    configJson?: Record<string, unknown> | null;
+  };
+
+  type DynamicFieldsUpdateEntityExtrasPayload = {
+    entity: DynamicEntity;
+    entityId: string;
+    patch: Record<string, unknown>;
+    unsetKeys?: string[];
+  };
+
+  type DynamicFieldsListDefsResponse =
+    | { ok: true; defs: DynamicFieldDef[] }
+    | { ok: false; error: string };
+
+  type DynamicFieldsCreateDefResponse =
+    | { ok: true; def: DynamicFieldDef }
+    | { ok: false; error: string };
+
+  type DynamicFieldsUpdateEntityExtrasResponse =
+    | {
+        ok: true;
+        entity: DynamicEntity;
+        entityId: string;
+        extrasJson: Record<string, unknown>;
+      }
+    | { ok: false; error: string };
+
+  // ============================================================
+  // ✅ Runtime stats + legacy response (se usan en EventPayloadMapping)
+  // ============================================================
+  type Statistics = {
+    cpuUsage: number;
+    ramUsage: number;
+    storageUsage: number;
+  };
+
+  type StaticData = {
+    totalStorage: number;
+    cpuModel: string;
+    totalMemoryGB: number;
+  };
+
+  type LegacyVisualizerMapResponse =
+    import("./src/electron/modules/maps/interfaces/legacyAdapter.js").LegacyVisualizerMapResponse;
+
+  // ============================================================
+  // ✅ IPC mapping (tipos de retorno por canal)
+  // ============================================================
+  type EventPayloadMapping = {
+    statistics: Statistics;
+    getStaticData: StaticData;
+
+    backendGetTruthRegistry: BackendTruthRegistry;
+    backendInitSchema: BackendBootstrapStatus;
+    backendSeedInitialData: BackendBootstrapStatus;
+    backendGetBootstrapStatus: BackendBootstrapStatus;
+
+    mapsGetByLayer: Mapa | null;
+    mapsUpsert: Mapa;
+    legacyVisualizerGetMap: LegacyVisualizerMapResponse | null;
+
+    scenarioTypeCreate: TipoEscenario;
+    scenarioTypeList: TipoEscenario[];
+    scenarioCreate: Escenario;
+    scenarioListByProject: Escenario[];
+
+    simulationTypeCreate: TipoSimulacion;
+    simulationTypeList: TipoSimulacion[];
+    simulationCreate: Simulacion;
+    simulationListByProject: Simulacion[];
+
+    importMapsDryRun: ImportJobResult;
+    importMapsCommit: ImportJobResult;
+    importCapasDryRun: ImportJobResult;
+    importCapasCommit: ImportJobResult;
+
+    productionCreate: Produccion;
+    productionListByProject: Produccion[];
+
+    scenarioValueCreate: ValorEscenario;
+    scenarioValueListByEscenario: ValorEscenario[];
+
+    wellStateTypeCreate: TipoEstadoPozo;
+    wellStateTypeList: TipoEstadoPozo[];
+    wellStateSetCreate: SetEstadoPozos;
+    wellStateSetListByProject: SetEstadoPozos[];
+    wellStateSetDetailCreate: SetEstadoPozosDetalle;
+    wellStateSetDetailList: SetEstadoPozosDetalle[];
+
+    grupoVariableCreate: GrupoVariable;
+    grupoVariableList: GrupoVariable[];
+
+    variableCreate: Variable;
+    variableListByGrupoVariable: Variable[];
+
+    // ✅ unidades (v9)
+    unidadesListByProyecto: Unidades[];
+    unidadesUpsert: { id: string };
+
+    ellipseVariableCreate: ElipseVariable;
+    ellipseVariableList: ElipseVariable[];
+
+    ellipseCreate: Elipse;
+    ellipseListByLayer: Elipse[];
+    ellipseListByProject: Elipse[];
+
+    ellipseValueCreate: ElipseValor;
+    ellipseValueListBySimulacion: ElipseValor[];
+
+    elipsesNormalizationAll:
+      | { ok: true; ranges: Record<string, { min: number; max: number }> }
+      | { ok: false; error: string };
+
+    dynamicFieldsListDefs: DynamicFieldsListDefsResponse;
+    dynamicFieldsCreateDef: DynamicFieldsCreateDefResponse;
+    dynamicFieldsUpdateEntityExtras: DynamicFieldsUpdateEntityExtrasResponse;
+
+    coreProyectoInitialize: { proyecto: Proyecto };
+    coreProyectoCreate: Proyecto;
+    coreProyectoList: Proyecto[];
+
+    coreCapaCreate: Capa;
+    coreCapaListByProject: Capa[];
+
+    corePozoCreate: Pozo;
+    corePozoListByProject: Pozo[];
+
+    corePozoCapaCreate: PozoCapa;
+    corePozoCapaListByProject: PozoCapa[];
+  };
+
+  // ============================================================
+  // Window.electron (API expuesta por preload)
   // ============================================================
   interface Window {
     electron: {
       subscribeStatistics: (
         callback: (statistics: Statistics) => void,
-      ) => UnsuscribeFunction;
-
+      ) => Unsubscribe;
       getStaticData: () => Promise<StaticData>;
 
       backendGetTruthRegistry: () => Promise<BackendTruthRegistry>;
@@ -268,22 +440,25 @@ declare global {
       grupoVariableCreate: (
         payload: CreateGrupoVariableInput,
       ) => Promise<GrupoVariable>;
-      grupoVariableList: () => Promise<GrupoVariable[]>;
+      grupoVariableList: (payload?: {
+        proyectoId?: string;
+      }) => Promise<GrupoVariable[]>;
 
       variableCreate: (payload: CreateVariableInput) => Promise<Variable>;
-      variableListByUnidades: (payload: {
-        unidadesId: string;
+      variableListByGrupoVariable: (payload: {
+        grupoVariableId: string;
       }) => Promise<Variable[]>;
 
-      // =========================
-      // ✅ Ellipse (variables / geometría / valores / normalización)
-      // =========================
+      unidadesListByProyecto: (payload: {
+        proyectoId: string;
+      }) => Promise<Unidades[]>;
+      unidadesUpsert: (payload: UpsertUnidadInput) => Promise<{ id: string }>;
+
       ellipseVariableCreate: (
         payload: CreateElipseVariableInput,
       ) => Promise<ElipseVariable>;
       ellipseVariableList: () => Promise<ElipseVariable[]>;
 
-      // ✅ NUEVO: geometría (tabla Elipse)
       ellipseCreate: (payload: CreateElipseInput) => Promise<Elipse>;
       ellipseListByLayer: (payload: {
         simulacionId: string;
@@ -293,7 +468,6 @@ declare global {
         proyectoId: string;
       }) => Promise<Elipse[]>;
 
-      // ✅ valores (CreateElipseValorInput ahora incluye elipseId)
       ellipseValueCreate: (
         payload: CreateElipseValorInput,
       ) => Promise<ElipseValor>;
@@ -301,7 +475,6 @@ declare global {
         simulacionId: string;
       }) => Promise<ElipseValor[]>;
 
-      // ✅ normalización
       elipsesNormalizationAll: (
         payload: ElipsesNormalizationAllPayload,
       ) => Promise<
@@ -309,19 +482,19 @@ declare global {
         | { ok: false; error: string }
       >;
 
-      variableMapaCreate: (
-        payload: CreateVariableMapaInput,
-      ) => Promise<VariableMapa>;
-      variableMapaList: () => Promise<VariableMapa[]>;
-
-      coreUnidadesCreate: (payload: CreateUnidadesInput) => Promise<Unidades>;
-      coreUnidadesListByProject: (payload: {
-        proyectoId: string;
-      }) => Promise<Unidades[]>;
+      dynamicFieldsListDefs: (
+        payload: DynamicFieldsListDefsPayload,
+      ) => Promise<DynamicFieldsListDefsResponse>;
+      dynamicFieldsCreateDef: (
+        payload: DynamicFieldsCreateDefPayload,
+      ) => Promise<DynamicFieldsCreateDefResponse>;
+      dynamicFieldsUpdateEntityExtras: (
+        payload: DynamicFieldsUpdateEntityExtrasPayload,
+      ) => Promise<DynamicFieldsUpdateEntityExtrasResponse>;
 
       coreProyectoInitialize: (
         payload: CreateProyectoBootstrapInput,
-      ) => Promise<{ proyecto: Proyecto; unidades: Unidades }>;
+      ) => Promise<{ proyecto: Proyecto }>;
       coreProyectoCreate: (payload: CreateProyectoInput) => Promise<Proyecto>;
       coreProyectoList: () => Promise<Proyecto[]>;
 
@@ -342,107 +515,3 @@ declare global {
     };
   }
 }
-
-// ============================================================
-// Runtime stats (no global por UI, pero se usan en EventPayload)
-// ============================================================
-type Statistics = {
-  cpuUsage: number;
-  ramUsage: number;
-  storageUsage: number;
-};
-
-type StaticData = {
-  totalStorage: number;
-  cpuModel: string;
-  totalMemoryGB: number;
-};
-
-type LegacyVisualizerMapResponse =
-  import("./src/electron/modules/maps/interfaces/legacyAdapter.js").LegacyVisualizerMapResponse;
-
-// ============================================================
-// IPC mapping (tipos de retorno por canal)
-// ============================================================
-type EventPayloadMapping = {
-  statistics: Statistics;
-  getStaticData: StaticData;
-
-  backendGetTruthRegistry: BackendTruthRegistry;
-  backendInitSchema: BackendBootstrapStatus;
-  backendSeedInitialData: BackendBootstrapStatus;
-  backendGetBootstrapStatus: BackendBootstrapStatus;
-
-  mapsGetByLayer: Mapa | null;
-  mapsUpsert: Mapa;
-  legacyVisualizerGetMap: LegacyVisualizerMapResponse | null;
-
-  scenarioTypeCreate: TipoEscenario;
-  scenarioTypeList: TipoEscenario[];
-  scenarioCreate: Escenario;
-  scenarioListByProject: Escenario[];
-
-  simulationTypeCreate: TipoSimulacion;
-  simulationTypeList: TipoSimulacion[];
-  simulationCreate: Simulacion;
-  simulationListByProject: Simulacion[];
-
-  importMapsDryRun: ImportJobResult;
-  importMapsCommit: ImportJobResult;
-  importCapasDryRun: ImportJobResult;
-  importCapasCommit: ImportJobResult;
-
-  productionCreate: Produccion;
-  productionListByProject: Produccion[];
-
-  scenarioValueCreate: ValorEscenario;
-  scenarioValueListByEscenario: ValorEscenario[];
-
-  wellStateTypeCreate: TipoEstadoPozo;
-  wellStateTypeList: TipoEstadoPozo[];
-  wellStateSetCreate: SetEstadoPozos;
-  wellStateSetListByProject: SetEstadoPozos[];
-  wellStateSetDetailCreate: SetEstadoPozosDetalle;
-  wellStateSetDetailList: SetEstadoPozosDetalle[];
-
-  grupoVariableCreate: GrupoVariable;
-  grupoVariableList: GrupoVariable[];
-  variableCreate: Variable;
-  variableListByUnidades: Variable[];
-
-  ellipseVariableCreate: ElipseVariable;
-  ellipseVariableList: ElipseVariable[];
-
-  // ✅ NUEVO: geometría
-  ellipseCreate: Elipse;
-  ellipseListByLayer: Elipse[];
-  ellipseListByProject: Elipse[];
-
-  ellipseValueCreate: ElipseValor;
-  ellipseValueListBySimulacion: ElipseValor[];
-
-  // ✅ NUEVO: normalización (ya existe en backend)
-  elipsesNormalizationAll:
-    | { ok: true; ranges: Record<string, { min: number; max: number }> }
-    | { ok: false; error: string };
-
-  variableMapaCreate: VariableMapa;
-  variableMapaList: VariableMapa[];
-
-  coreUnidadesCreate: Unidades;
-  coreUnidadesListByProject: Unidades[];
-  coreProyectoInitialize: { proyecto: Proyecto; unidades: Unidades };
-  coreProyectoCreate: Proyecto;
-  coreProyectoList: Proyecto[];
-
-  coreCapaCreate: Capa;
-  coreCapaListByProject: Capa[];
-
-  corePozoCreate: Pozo;
-  corePozoListByProject: Pozo[];
-
-  corePozoCapaCreate: PozoCapa;
-  corePozoCapaListByProject: PozoCapa[];
-};
-
-type UnsuscribeFunction = () => void;

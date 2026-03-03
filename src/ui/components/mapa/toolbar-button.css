@@ -1,0 +1,29 @@
+.toolbarButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 4px 8px; /* px-2 py-1 */
+  border-radius: 4px;
+
+  background: transparent;
+  border: none;
+
+  cursor: pointer;
+}
+
+/* hover:bg-slate-100 */
+.toolbarButton:not(.toolbarButton--disabled):hover {
+  background: rgba(15, 23, 42, 0.06);
+}
+
+/* active bg-slate-200 */
+.toolbarButton--active {
+  background: rgba(15, 23, 42, 0.12);
+}
+
+/* disabled */
+.toolbarButton--disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}

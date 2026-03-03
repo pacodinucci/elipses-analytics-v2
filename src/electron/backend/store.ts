@@ -1,3 +1,4 @@
+// src/electron/backend/store.js
 import type { BackendBootstrapStatus, BackendTruthRegistry } from "./models.js";
 import { databaseService } from "../shared/db/index.js";
 import { migrations } from "../shared/db/migrations.js";
@@ -25,14 +26,21 @@ const ENTITY_TABLES = [
   "ElipseValor",
   "Simulacion",
   "Produccion",
-  // ⚠️ legacy: se elimina en cleanup final
   "VariableMapa",
   "Mapa",
 ] as const;
 
 class BackendStore {
   private readonly db = databaseService;
+
   private schemaInitialized = false;
+
+  /**
+   * ✅ Single-flight guard:
+   * - evita correr applyMigrations dos veces en paralelo
+   * - si se llama 2+ veces, todas esperan la misma promesa
+   */
+  private initSchemaPromise: Promise<BackendBootstrapStatus> | null = null;
 
   getTruthRegistry(): BackendTruthRegistry {
     return {
@@ -41,15 +49,37 @@ class BackendStore {
         "Mermaid class diagram is treated as source of truth.",
         "Schema is managed through versioned migrations in src/electron/shared/db/migrations.ts.",
         "Bootstrap creates physical tables in DuckDB (backend-v2.duckdb).",
-        "Note: some legacy columns/tables may exist temporarily during migrations (e.g., VariableMapa, Simulacion.setEstadoPozosId).",
+        "Note: some legacy columns/tables may exist temporarily during migrations (e.g., Simulacion.setEstadoPozosId).",
       ],
     };
   }
 
   async initSchema(): Promise<BackendBootstrapStatus> {
-    await this.db.applyMigrations(migrations);
-    this.schemaInitialized = true;
-    return this.getBootstrapStatus();
+    // ✅ si ya está inicializado, no hagas nada
+    if (this.schemaInitialized) {
+      return this.getBootstrapStatus();
+    }
+
+    // ✅ si hay una inicialización en curso, esperala
+    if (this.initSchemaPromise) {
+      return this.initSchemaPromise;
+    }
+
+    this.initSchemaPromise = (async () => {
+      try {
+        await this.db.applyMigrations(migrations);
+
+        // ✅ solo true si applyMigrations terminó ok
+        this.schemaInitialized = true;
+
+        return await this.getBootstrapStatus();
+      } finally {
+        // ✅ si falló, permitimos reintentar; si salió ok, igual liberamos
+        this.initSchemaPromise = null;
+      }
+    })();
+
+    return this.initSchemaPromise;
   }
 
   async seedInitialData(): Promise<BackendBootstrapStatus> {
@@ -64,15 +94,15 @@ class BackendStore {
     const updatedAt = createdAt;
 
     // ---------------------------
-    // Proyecto + Unidades
+    // Proyecto (✅ sin unidadesId)
     // ---------------------------
     await this.db.run(
       `INSERT INTO Proyecto (
         id, nombre, alias, limitesTemporalDesde, limitesTemporalHasta,
         arealMinX, arealMinY, arealMaxX, arealMaxY, arealCRS,
         grillaNx, grillaNy, grillaCellSizeX, grillaCellSizeY, grillaUnidad,
-        unidadesId, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         "proj-demo",
         "Proyecto Demo",
@@ -89,15 +119,9 @@ class BackendStore {
         10,
         10,
         "m",
-        "units-demo",
         createdAt,
         updatedAt,
       ],
-    );
-
-    await this.db.run(
-      "INSERT INTO Unidades (id, proyectoId, createdAt, updatedAt) VALUES (?, ?, ?, ?)",
-      ["units-demo", "proj-demo", createdAt, updatedAt],
     );
 
     // ---------------------------
@@ -155,11 +179,11 @@ class BackendStore {
      * - Simulacion NO requiere setEstadoPozosId
      * - SetEstadoPozos requiere simulacionId y NO tiene proyectoId
      *
-     * Pero el schema v1 todavía tiene:
+     * Pero el schema transicional todavía puede tener:
      * - Simulacion.setEstadoPozosId NOT NULL
      * - SetEstadoPozos.proyectoId NOT NULL
      *
-     * Entonces, para seed en esquema transicional:
+     * Entonces para seed:
      * 1) crear SetEstadoPozos con proyectoId (legacy)
      * 2) crear Simulacion apuntando a setEstadoPozosId (legacy)
      * 3) actualizar SetEstadoPozos.simulacionId (columna v4) con el id de la simulación
@@ -208,34 +232,36 @@ class BackendStore {
     // GrupoVariable para map (nuevo dominio)
     // ---------------------------
     await this.db.run(
-      "INSERT INTO GrupoVariable (id, nombre, orden) VALUES (?, ?, ?)",
-      ["grp-mapa-base", "Mapa Base", 0],
+      `INSERT INTO GrupoVariable (
+        id, proyectoId, nombre, orden, scope, createdAt, updatedAt, extrasJson
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        "grp-proj-demo-mapa-base",
+        "proj-demo",
+        "Mapa Base",
+        0,
+        "MAPA",
+        createdAt,
+        updatedAt,
+        {},
+      ],
     );
 
-    /**
-     * Mapa (compat):
-     * - schema v1 exige variableMapaId NOT NULL
-     * - dominio nuevo usa grupoVariableId (columna v4)
-     *
-     * Entonces:
-     * 1) creamos VariableMapa legacy solo para satisfacer v1
-     * 2) insert Mapa con variableMapaId legacy
-     * 3) seteamos grupoVariableId (v4)
-     */
-    await this.db.run("INSERT INTO VariableMapa (id, nombre) VALUES (?, ?)", [
-      "var-mapa-legacy",
-      "LEGACY",
-    ]);
+    await this.db.run(
+      "INSERT INTO VariableMapa (id, nombre) VALUES (?, ?)",
+      ["vm-proj-demo-grid", "Grid"],
+    );
 
     await this.db.run(
       `INSERT INTO Mapa (
-        id, proyectoId, capaId, variableMapaId, xedges, yedges, grid, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, proyectoId, capaId, variableMapaId, grupoVariableId, xedges, yedges, grid, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         "mapa-capa-a",
         "proj-demo",
         "capa-a",
-        "var-mapa-legacy",
+        "vm-proj-demo-grid",
+        "grp-proj-demo-mapa-base",
         JSON.stringify([0, 10, 20]),
         JSON.stringify([0, 10, 20]),
         JSON.stringify([
@@ -247,11 +273,57 @@ class BackendStore {
       ],
     );
 
-    // v4: Mapa.grupoVariableId (si existe) -> lo seteamos
-    await this.db.run("UPDATE Mapa SET grupoVariableId = ? WHERE capaId = ?", [
-      "grp-mapa-base",
-      "capa-a",
-    ]);
+    // ---------------------------
+    // ✅ NUEVO: GrupoVariable PROYECTO + Variable + Unidades(setting)
+    // ---------------------------
+    await this.db.run(
+      `INSERT INTO GrupoVariable (
+        id, proyectoId, nombre, orden, scope, createdAt, updatedAt, extrasJson
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        "grp-proj-demo-unidades",
+        "proj-demo",
+        "Unidades",
+        1,
+        "UNIDADES",
+        createdAt,
+        updatedAt,
+        {},
+      ],
+    );
+
+    await this.db.run(
+      `INSERT INTO Variable (
+        id, grupoVariableId, nombre, codigo, tipoDato, configJson, createdAt, updatedAt, extrasJson
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        "var-flow-rate",
+        "grp-proj-demo-unidades",
+        "Caudal (unidad)",
+        "FLOW_RATE_UNIT",
+        "string",
+        JSON.stringify({}),
+        createdAt,
+        updatedAt,
+        JSON.stringify({}),
+      ],
+    );
+
+    // settings: en este proyecto, FLOW_RATE_UNIT = "m3/d"
+    await this.db.run(
+      `INSERT INTO Unidades (
+        id, proyectoId, unidad, configJson, createdAt, updatedAt, extrasJson
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        "units-proj-demo-flow",
+        "proj-demo",
+        "m3/d",
+        JSON.stringify({}),
+        createdAt,
+        updatedAt,
+        JSON.stringify({}),
+      ],
+    );
 
     return this.getBootstrapStatus();
   }

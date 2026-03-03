@@ -1,3 +1,4 @@
+// src/electron/util.ts
 import { ipcMain, WebContents, WebFrameMain } from "electron";
 import { getUIPath } from "./pathResolver.js";
 import { pathToFileURL } from "url";
@@ -56,6 +57,7 @@ export function ipcMainHandleWithPayload<K extends ElectronKey>(
   });
 }
 
+// ✅ OJO: el tipo en types.d.ts se llama EventPayloadMapping (sin "...ing")
 export function ipcWebContentsSend<Key extends keyof EventPayloadMapping>(
   key: Key,
   webContents: WebContents,

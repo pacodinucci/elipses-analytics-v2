@@ -1,8 +1,9 @@
+// src/electron/modules/maps/interfaces/legacyAdapter.ts
 import type { Mapa } from "../../../backend/models.js";
 
 /**
  * Legacy payload: se mantiene para compatibilidad con el visualizador viejo.
- * Con el modelo nuevo (A: 1 mapa por capa) el filtro por variableMapaId ya no aplica.
+ * Con el modelo actual, la relación de Mapa se resuelve por variableMapaId.
  */
 export interface LegacyVisualizerMapPayload {
   capaId: string;
@@ -14,7 +15,9 @@ export interface LegacyVisualizerMapResponse {
   variableMapaId: string;
   xedges: number[];
   yedges: number[];
-  grid: number[][];
+
+  // ✅ v2: el grid puede contener nulls (celdas sin dato)
+  grid: (number | null)[][];
 }
 
 export function toLegacyVisualizerMapResponse(
@@ -22,8 +25,7 @@ export function toLegacyVisualizerMapResponse(
 ): LegacyVisualizerMapResponse {
   return {
     capaId: map.capaId,
-    // ✅ en el modelo nuevo, esto representa el grupo de variables del mapa
-    variableMapaId: map.grupoVariableId,
+    variableMapaId: map.variableMapaId,
     xedges: map.xedges,
     yedges: map.yedges,
     grid: map.grid,

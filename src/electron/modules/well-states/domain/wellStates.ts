@@ -1,3 +1,5 @@
+// src/electron/modules/well-states/domain/wellStates.ts
+
 export interface CreateTipoEstadoPozoInput {
   id: string;
   nombre: string;
@@ -5,7 +7,13 @@ export interface CreateTipoEstadoPozoInput {
 
 export interface CreateSetEstadoPozosInput {
   id: string;
-  simulacionId: string;
+
+  // ✅ schema v1 + models.ts: requerido
+  proyectoId: string;
+
+  // ✅ v4+: nullable (link inverso a simulación)
+  simulacionId: string | null;
+
   nombre: string;
 }
 
@@ -16,10 +24,20 @@ export interface CreateSetEstadoPozosDetalleInput {
   tipoEstadoPozoId: string;
 }
 
-function requireString(value: string, field: string): void {
-  if (!value || !value.trim()) {
+function requireString(value: unknown, field: string): void {
+  if (typeof value !== "string" || !value.trim()) {
     throw new Error(`${field} is required`);
   }
+}
+
+function optionalNullableString(value: unknown): string | null {
+  if (value == null) return null;
+  if (typeof value !== "string") return null;
+  const t = value.trim();
+  if (!t) return null;
+  if (t.toLowerCase() === "null" || t.toLowerCase() === "undefined")
+    return null;
+  return t;
 }
 
 export function validateCreateTipoEstadoPozoInput(
@@ -33,8 +51,11 @@ export function validateCreateSetEstadoPozosInput(
   input: CreateSetEstadoPozosInput,
 ): void {
   requireString(input.id, "id");
-  requireString(input.simulacionId, "simulacionId");
+  requireString(input.proyectoId, "proyectoId");
   requireString(input.nombre, "nombre");
+
+  // normalización defensiva: permitimos que venga "" o "null" y lo tratamos como null
+  input.simulacionId = optionalNullableString(input.simulacionId);
 }
 
 export function validateCreateSetEstadoPozosDetalleInput(

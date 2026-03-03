@@ -50,7 +50,10 @@ export function useFillTab({
   style,
   onChangeStyle,
 
-  yacimientoId,
+  // ✅ v2
+  proyectoId,
+  simulacionId,
+
   capaNombre,
   fecha,
 }: {
@@ -60,7 +63,9 @@ export function useFillTab({
   style: ElipsesStyle;
   onChangeStyle: (s: ElipsesStyle) => void;
 
-  yacimientoId: string | null;
+  proyectoId: string | null;
+  simulacionId: string | null;
+
   capaNombre: string | null;
   fecha: string | null; // YYYY-MM-DD
 }) {
@@ -72,29 +77,33 @@ export function useFillTab({
   // -----------------------------
   const baseArgs = useMemo(
     () => ({
-      yacimientoId: tabActive ? yacimientoId : null,
+      proyectoId: tabActive ? proyectoId : null,
+      simulacionId: tabActive ? simulacionId : null,
       capaNombre: tabActive ? capaNombre : null,
       fecha: tabActive ? fecha : null,
+
+      // 🧯 compat temporal (solo si tu hook todavía lo pide):
+      // yacimientoId: tabActive ? (proyectoId ?? null) : null,
     }),
-    [tabActive, yacimientoId, capaNombre, fecha],
+    [tabActive, proyectoId, simulacionId, capaNombre, fecha],
   );
 
   const norm_layer_date = useElipsesNormalization({
     ...baseArgs,
     scope: "layer_date",
-  });
+  } as any);
   const norm_layer_all = useElipsesNormalization({
     ...baseArgs,
     scope: "layer_all",
-  });
+  } as any);
   const norm_field_date = useElipsesNormalization({
     ...baseArgs,
     scope: "field_date",
-  });
+  } as any);
   const norm_field_all = useElipsesNormalization({
     ...baseArgs,
     scope: "field_all",
-  });
+  } as any);
 
   const fillNormByScope: FillNormByScope = useMemo(
     () => ({

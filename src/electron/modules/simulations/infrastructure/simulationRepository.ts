@@ -1,3 +1,4 @@
+// src/electron/modules/simulations/infrastructure/simulationRepository.ts
 import type { Simulacion, TipoSimulacion } from "../../../backend/models.js";
 import { databaseService } from "../../../shared/db/index.js";
 import type {
@@ -18,6 +19,7 @@ function rowToSimulation(row: Record<string, unknown>): Simulacion {
     proyectoId: String(row.proyectoId),
     tipoSimulacionId: String(row.tipoSimulacionId),
     escenarioSimulacionId: String(row.escenarioSimulacionId),
+    setEstadoPozosId: String(row.setEstadoPozosId),
     createdAt: String(row.createdAt),
     updatedAt: String(row.updatedAt),
   };
@@ -37,6 +39,7 @@ export class SimulationRepository {
       [input.id],
     );
 
+    if (rows.length === 0) throw new Error("TipoSimulacion creation failed");
     return rowToSimulationType(rows[0]);
   }
 
@@ -44,7 +47,6 @@ export class SimulationRepository {
     const rows = await databaseService.readAll(
       "SELECT id, nombre FROM TipoSimulacion ORDER BY nombre ASC",
     );
-
     return rows.map(rowToSimulationType);
   }
 
@@ -53,32 +55,34 @@ export class SimulationRepository {
 
     await databaseService.run(
       `INSERT INTO Simulacion (
-        id, proyectoId, tipoSimulacionId, escenarioSimulacionId, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?)`,
+        id, proyectoId, tipoSimulacionId, escenarioSimulacionId, setEstadoPozosId, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         input.id,
         input.proyectoId,
         input.tipoSimulacionId,
         input.escenarioSimulacionId,
+        input.setEstadoPozosId,
         now,
         now,
       ],
     );
 
     const rows = await databaseService.readAll(
-      `SELECT id, proyectoId, tipoSimulacionId, escenarioSimulacionId, createdAt, updatedAt
+      `SELECT id, proyectoId, tipoSimulacionId, escenarioSimulacionId, setEstadoPozosId, createdAt, updatedAt
        FROM Simulacion
        WHERE id = ?
        LIMIT 1`,
       [input.id],
     );
 
+    if (rows.length === 0) throw new Error("Simulacion creation failed");
     return rowToSimulation(rows[0]);
   }
 
   async listSimulacionesByProyecto(proyectoId: string): Promise<Simulacion[]> {
     const rows = await databaseService.readAll(
-      `SELECT id, proyectoId, tipoSimulacionId, escenarioSimulacionId, createdAt, updatedAt
+      `SELECT id, proyectoId, tipoSimulacionId, escenarioSimulacionId, setEstadoPozosId, createdAt, updatedAt
        FROM Simulacion
        WHERE proyectoId = ?
        ORDER BY createdAt DESC`,

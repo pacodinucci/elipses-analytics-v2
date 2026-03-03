@@ -1,3 +1,4 @@
+// src/ui/selection-store.ts
 import { create } from "zustand";
 
 type SelectionState = {

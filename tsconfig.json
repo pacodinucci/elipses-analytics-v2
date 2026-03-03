@@ -1,20 +1,15 @@
 {
   "compilerOptions": {
-    "types": ["./types"],
     "target": "ES2020",
-    "lib": ["ES2020"],
+    "lib": ["ES2020", "DOM", "DOM.Iterable"],
     "module": "ESNext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "isolatedModules": true,
     "noEmit": true,
     "strict": true,
-    "skipLibCheck": true
+    "skipLibCheck": true,
+    "jsx": "react-jsx"
   },
-  "include": [
-    "types.d.ts",
-    "src/electron/**/*.ts",
-    "src/electron/**/*.cts",
-    "src/electron/**/*.mts"
-  ]
+  "include": ["types.d.ts", "src/**/*.ts", "src/**/*.tsx"]
 }

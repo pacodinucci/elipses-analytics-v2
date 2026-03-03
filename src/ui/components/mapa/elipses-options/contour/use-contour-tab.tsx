@@ -1,4 +1,3 @@
-// src/components/mapa/elipses-options/contour/use-contour-tab.tsx
 import { useEffect, useMemo } from "react";
 import type {
   ElipsesNormalizationRanges,
@@ -55,7 +54,10 @@ export function useContourTab({
   style,
   onChangeStyle,
 
-  yacimientoId,
+  // ✅ v2
+  proyectoId,
+  simulacionId,
+
   capaNombre,
   fecha,
 }: {
@@ -65,7 +67,9 @@ export function useContourTab({
   style: ElipsesStyle;
   onChangeStyle: (s: ElipsesStyle) => void;
 
-  yacimientoId: string | null;
+  proyectoId: string | null;
+  simulacionId: string | null;
+
   capaNombre: string | null;
   fecha: string | null; // YYYY-MM-DD
 }) {
@@ -77,29 +81,33 @@ export function useContourTab({
   // -----------------------------
   const baseArgs = useMemo(
     () => ({
-      yacimientoId: tabActive ? yacimientoId : null,
+      proyectoId: tabActive ? proyectoId : null,
+      simulacionId: tabActive ? simulacionId : null,
       capaNombre: tabActive ? capaNombre : null,
       fecha: tabActive ? fecha : null,
+
+      // 🧯 compat temporal si tu hook todavía acepta yacimientoId:
+      // yacimientoId: tabActive ? (proyectoId ?? null) : null,
     }),
-    [tabActive, yacimientoId, capaNombre, fecha],
+    [tabActive, proyectoId, simulacionId, capaNombre, fecha],
   );
 
   const norm_layer_date = useElipsesNormalization({
     ...baseArgs,
     scope: "layer_date",
-  });
+  } as any);
   const norm_layer_all = useElipsesNormalization({
     ...baseArgs,
     scope: "layer_all",
-  });
+  } as any);
   const norm_field_date = useElipsesNormalization({
     ...baseArgs,
     scope: "field_date",
-  });
+  } as any);
   const norm_field_all = useElipsesNormalization({
     ...baseArgs,
     scope: "field_all",
-  });
+  } as any);
 
   const contourNormByScope: ContourNormByScope = useMemo(
     () => ({
@@ -127,7 +135,7 @@ export function useContourTab({
     ) => {
       if (!attr.enabled) return;
 
-      if (attr.enabled && !attr.variable) {
+      if (!attr.variable) {
         attr.variable = firstVar;
         changed = true;
       }
@@ -154,7 +162,6 @@ export function useContourTab({
         changed = true;
       }
 
-      // compat: si venía mode guardando scope (viejo)
       const mMin = (attr as any).range.min?.mode;
       if (
         mMin === "layer_date" ||
@@ -222,7 +229,6 @@ export function useContourTab({
       const v = (attr as any).variable ?? null;
       if (!v) return;
 
-      // MIN auto
       if ((attr as any).range?.min?.mode !== "manual") {
         const scopeMin: ElipsesNormalizationScope = coerceScope(
           (attr as any).range?.min?.scope,
@@ -241,7 +247,6 @@ export function useContourTab({
         }
       }
 
-      // MAX auto
       if ((attr as any).range?.max?.mode !== "manual") {
         const scopeMax: ElipsesNormalizationScope = coerceScope(
           (attr as any).range?.max?.scope,

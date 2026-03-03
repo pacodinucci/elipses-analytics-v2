@@ -1,54 +1,59 @@
+// src/electron/modules/core-data/application/coreDataService.ts
 import { randomUUID } from "node:crypto";
-import type { Capa, Pozo, PozoCapa, Proyecto, Unidades } from "../../../backend/models.js";
+
+import type {
+  Capa,
+  Pozo,
+  PozoCapa,
+  Proyecto,
+} from "../../../backend/models.js";
 import { migrations } from "../../../shared/db/migrations.js";
 import { databaseService } from "../../../shared/db/index.js";
+
 import type {
   CreateCapaInput,
   CreatePozoCapaInput,
   CreatePozoInput,
   CreateProyectoBootstrapInput,
   CreateProyectoInput,
-  CreateUnidadesInput,
 } from "../domain/coreData.js";
+
 import {
   validateCreateCapaInput,
   validateCreatePozoCapaInput,
   validateCreatePozoInput,
   validateCreateProyectoBootstrapInput,
   validateCreateProyectoInput,
-  validateCreateUnidadesInput,
 } from "../domain/coreData.js";
+
 import { CoreDataRepository } from "../infrastructure/coreDataRepository.js";
+
+// ✅ seed catálogo + unidades por proyecto
+import { variablesService } from "../../variables/application/variablesService.js";
 
 export class CoreDataService {
   private readonly repository = new CoreDataRepository();
   private schemaReady = false;
 
-  async createUnidades(input: CreateUnidadesInput): Promise<Unidades> {
-    validateCreateUnidadesInput(input);
-    await this.ensureSchema();
-    return this.repository.createUnidades(input);
-  }
-
-  async listUnidadesByProject(proyectoId: string): Promise<Unidades[]> {
-    if (!proyectoId) {
-      throw new Error("proyectoId is required");
-    }
-
-    await this.ensureSchema();
-    return this.repository.listUnidadesByProject(proyectoId);
-  }
-
-
-  async initializeProyecto(input: CreateProyectoBootstrapInput): Promise<{ proyecto: Proyecto; unidades: Unidades }> {
+  /**
+   * ✅ Inicializa un proyecto (bootstrap):
+   * - crea Proyecto
+   * - asegura catálogo mínimo (global)
+   * - asegura Unidades default para este proyecto (settings por variable)
+   */
+  async initializeProyecto(
+    input: CreateProyectoBootstrapInput,
+  ): Promise<{ proyecto: Proyecto }> {
     validateCreateProyectoBootstrapInput(input);
     await this.ensureSchema();
 
     const proyectoId = randomUUID();
-    const unidadesId = `${proyectoId}-units`;
     const alias = input.nombre.trim().slice(0, 12).toUpperCase();
-    const grillaCellSizeX = (input.arealMaxX - input.arealMinX) / input.grillaNx;
-    const grillaCellSizeY = (input.arealMaxY - input.arealMinY) / input.grillaNy;
+
+    const grillaCellSizeX =
+      (input.arealMaxX - input.arealMinX) / input.grillaNx;
+    const grillaCellSizeY =
+      (input.arealMaxY - input.arealMinY) / input.grillaNy;
 
     const proyecto = await this.repository.createProyecto({
       id: proyectoId,
@@ -66,21 +71,23 @@ export class CoreDataService {
       grillaCellSizeX,
       grillaCellSizeY,
       grillaUnidad: input.grillaUnidad,
-      unidadesId,
     });
 
-    const unidades = await this.repository.createUnidades({
-      id: unidadesId,
-      proyectoId,
-    });
+    await variablesService.ensureDefaultsForProject(proyectoId);
 
-    return { proyecto, unidades };
+    return { proyecto };
   }
 
   async createProyecto(input: CreateProyectoInput): Promise<Proyecto> {
     validateCreateProyectoInput(input);
     await this.ensureSchema();
-    return this.repository.createProyecto(input);
+
+    const proyecto = await this.repository.createProyecto(input);
+
+    // ✅ asegura defaults también en create “directo”
+    await variablesService.ensureDefaultsForProject(proyecto.id);
+
+    return proyecto;
   }
 
   async listProyectos(): Promise<Proyecto[]> {
@@ -95,10 +102,7 @@ export class CoreDataService {
   }
 
   async listCapasByProject(proyectoId: string): Promise<Capa[]> {
-    if (!proyectoId) {
-      throw new Error("proyectoId is required");
-    }
-
+    if (!proyectoId) throw new Error("proyectoId is required");
     await this.ensureSchema();
     return this.repository.listCapasByProject(proyectoId);
   }
@@ -110,10 +114,7 @@ export class CoreDataService {
   }
 
   async listPozosByProject(proyectoId: string): Promise<Pozo[]> {
-    if (!proyectoId) {
-      throw new Error("proyectoId is required");
-    }
-
+    if (!proyectoId) throw new Error("proyectoId is required");
     await this.ensureSchema();
     return this.repository.listPozosByProject(proyectoId);
   }
@@ -125,19 +126,13 @@ export class CoreDataService {
   }
 
   async listPozoCapaByProject(proyectoId: string): Promise<PozoCapa[]> {
-    if (!proyectoId) {
-      throw new Error("proyectoId is required");
-    }
-
+    if (!proyectoId) throw new Error("proyectoId is required");
     await this.ensureSchema();
     return this.repository.listPozoCapaByProject(proyectoId);
   }
 
   private async ensureSchema(): Promise<void> {
-    if (this.schemaReady) {
-      return;
-    }
-
+    if (this.schemaReady) return;
     await databaseService.applyMigrations(migrations);
     this.schemaReady = true;
   }

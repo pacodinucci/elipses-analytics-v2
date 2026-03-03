@@ -1,4 +1,3 @@
-// src/components/mapa/elipses-options/axis/use-axis-tab.tsx
 import { useEffect, useMemo } from "react";
 import type {
   ElipsesNormalizationScope,
@@ -54,7 +53,10 @@ export function useAxisTab({
   style,
   onChangeStyle,
 
-  yacimientoId,
+  // ✅ v2
+  proyectoId,
+  simulacionId,
+
   capaNombre,
   fecha,
 }: {
@@ -64,7 +66,9 @@ export function useAxisTab({
   style: ElipsesStyle;
   onChangeStyle: (s: ElipsesStyle) => void;
 
-  yacimientoId: string | null;
+  proyectoId: string | null;
+  simulacionId: string | null;
+
   capaNombre: string | null;
   fecha: string | null;
 }) {
@@ -76,29 +80,33 @@ export function useAxisTab({
   // -----------------------------
   const baseArgs = useMemo(
     () => ({
-      yacimientoId: tabActive ? yacimientoId : null,
+      proyectoId: tabActive ? proyectoId : null,
+      simulacionId: tabActive ? simulacionId : null,
       capaNombre: tabActive ? capaNombre : null,
       fecha: tabActive ? fecha : null,
+
+      // 🧯 compat temporal si tu hook todavía acepta yacimientoId:
+      // yacimientoId: tabActive ? (proyectoId ?? null) : null,
     }),
-    [tabActive, yacimientoId, capaNombre, fecha],
+    [tabActive, proyectoId, simulacionId, capaNombre, fecha],
   );
 
   const norm_layer_date = useElipsesNormalization({
     ...baseArgs,
     scope: "layer_date",
-  });
+  } as any);
   const norm_layer_all = useElipsesNormalization({
     ...baseArgs,
     scope: "layer_all",
-  });
+  } as any);
   const norm_field_date = useElipsesNormalization({
     ...baseArgs,
     scope: "field_date",
-  });
+  } as any);
   const norm_field_all = useElipsesNormalization({
     ...baseArgs,
     scope: "field_all",
-  });
+  } as any);
 
   const axisNormByScope: AxisNormByScope = useMemo(
     () => ({
@@ -122,13 +130,11 @@ export function useAxisTab({
     const ensureAttr = (attr: any) => {
       if (!attr?.enabled) return;
 
-      // seed variable
       if (!attr.variable) {
         attr.variable = firstVar;
         changed = true;
       }
 
-      // asegurar structure min/max
       if (!attr.range?.min) {
         attr.range = attr.range ?? {};
         attr.range.min = {
@@ -150,8 +156,6 @@ export function useAxisTab({
         changed = true;
       }
 
-      // Compat: si venía mode guardando scope (viejo)
-      // Ej: attr.range.min.mode === "layer_date"
       const mMin = attr.range.min?.mode;
       if (
         mMin === "layer_date" ||
@@ -175,7 +179,6 @@ export function useAxisTab({
         changed = true;
       }
 
-      // coercion final
       attr.range.min.mode =
         attr.range.min.mode === "manual" ? "manual" : "auto";
       attr.range.max.mode =
@@ -184,7 +187,6 @@ export function useAxisTab({
       attr.range.min.scope = coerceScope(attr.range.min.scope);
       attr.range.max.scope = coerceScope(attr.range.max.scope);
 
-      // manual numbers sanity
       if (!Number.isFinite(attr.range.min.manual)) {
         attr.range.min.manual = 0;
         changed = true;
@@ -216,7 +218,6 @@ export function useAxisTab({
       const v = attr.variable ?? null;
       if (!v) return;
 
-      // MIN auto
       if (attr.range?.min?.mode !== "manual") {
         const scopeMin: ElipsesNormalizationScope = coerceScope(
           attr.range?.min?.scope,
@@ -234,7 +235,6 @@ export function useAxisTab({
         }
       }
 
-      // MAX auto
       if (attr.range?.max?.mode !== "manual") {
         const scopeMax: ElipsesNormalizationScope = coerceScope(
           attr.range?.max?.scope,

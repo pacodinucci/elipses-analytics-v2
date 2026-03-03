@@ -1,5 +1,5 @@
 // src/components/layout/full-screen-loader.tsx
-import "./full-screen-loader.css";
+import "./fullscreen-loader.css";
 
 type Props = {
   label?: string;

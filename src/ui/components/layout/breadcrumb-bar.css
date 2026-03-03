@@ -1,0 +1,44 @@
+/* src/components/layout/breadcrumb-bar.css */
+
+.breadcrumbBar {
+  width: 100%;
+  padding: 4px 16px; /* px-4 py-1 */
+  border-bottom: 1px solid #e2e8f0; /* slate-200 */
+  background: #ffffff;
+
+  font-size: 12px; /* text-xs */
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.breadcrumbBar__project {
+  font-weight: 600; /* font-medium */
+  color: #1e293b; /* slate-800 */
+}
+
+.breadcrumbBar__sep {
+  color: #94a3b8; /* slate-400 */
+}
+
+.breadcrumbBar__yac {
+  color: #334155; /* slate-700 */
+}
+
+.breadcrumbBar__button {
+  display: inline-flex;
+  align-items: center;
+
+  border-radius: 2px; /* rounded-sm */
+  border: 1px solid #cbd5e1; /* slate-300 */
+
+  padding: 2px 16px; /* px-4 py-0.5 aprox */
+  font-size: 12px;
+  color: #334155; /* slate-700 */
+  background: #f1f5f9; /* slate-100 */
+  cursor: pointer;
+}
+
+.breadcrumbBar__button:hover {
+  background: #e2e8f0; /* slate-200 */
+}

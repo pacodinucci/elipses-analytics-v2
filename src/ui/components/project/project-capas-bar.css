@@ -1,0 +1,117 @@
+.capasbar {
+  width: 100%;
+  padding: 4px 8px;
+  background: #ffffff;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.12);
+}
+
+/* Contenedor de botones */
+.capasbar__wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+}
+
+.capasbar__state {
+  font-size: 11px;
+  color: rgba(15, 23, 42, 0.65);
+  padding: 2px 0;
+}
+
+.capasbar__state--error {
+  color: #dc2626;
+}
+
+/* =========================
+   BOTÓN BASE (TOP y LEFT)
+   ========================= */
+
+.capasbar__btn {
+  min-width: 70px;
+  padding: 4px 8px;
+  font-size: 10px;
+  line-height: 1.2;
+
+  border: 1px solid rgba(148, 163, 184, 1);
+  background: rgba(248, 250, 252, 1);
+  color: rgba(30, 41, 59, 1);
+
+  text-align: center;
+  white-space: nowrap;
+
+  cursor: pointer;
+  user-select: none;
+}
+
+.capasbar__btn:hover {
+  background: rgba(241, 245, 249, 1);
+}
+
+.capasbar__btn.is-selected {
+  background: rgba(30, 41, 59, 1);
+  border-color: rgba(30, 41, 59, 1);
+  color: #ffffff;
+}
+
+/* =========================
+   POSICIÓN
+   ========================= */
+
+/* TOP: sin cambios */
+.capasbar--top {
+  width: 100%;
+}
+
+/* =========================
+   LEFT: sidebar compacto
+   ========================= */
+
+.capasbar--left {
+  width: 100px; /* ⬅️ más angosto */
+  height: 99%;
+
+  padding: 4px; /* menos padding lateral */
+
+  border-bottom: none;
+  border-right: 1px solid rgba(15, 23, 42, 0.12);
+
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* En left: lista vertical */
+.capasbar--left .capasbar__wrap {
+  flex-direction: column;
+  flex-wrap: nowrap;
+  gap: 2px;
+}
+
+/* Botón más compacto SOLO en left */
+.capasbar--left .capasbar__btn {
+  min-width: unset; /* no fuerza ancho */
+  width: 100%; /* ocupa el sidebar */
+  padding: 3px 6px; /* más compacto */
+  font-size: 10px; /* texto más chico */
+  text-align: center; /* más legible en sidebar */
+}
+
+/* =========================
+   SCROLLBAR MINIMAL (LEFT)
+   ========================= */
+
+.capasbar--left::-webkit-scrollbar {
+  width: 3px;
+}
+
+.capasbar--left::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.capasbar--left::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.25);
+  border-radius: 6px;
+}
+
+.capasbar--left::-webkit-scrollbar-thumb:hover {
+  background: rgba(15, 23, 42, 0.4);
+}

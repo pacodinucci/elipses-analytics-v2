@@ -12,27 +12,31 @@ function mapProduccion(row: Record<string, unknown>): Produccion {
     petroleo: Number(row.petroleo),
     agua: Number(row.agua),
     gas: Number(row.gas),
-    aguaIny: Number(row.agua_iny),
+
+    // ✅ models.ts usa snake_case
+    agua_iny: Number(row.agua_iny),
   };
 }
 
 export class ProductionRepository {
   async create(input: CreateProduccionInput): Promise<Produccion> {
+    const aguaIny = (input as any).aguaIny ?? (input as any).agua_iny ?? 0;
+
     await databaseService.run(
       `INSERT INTO Produccion (
         id, proyectoId, pozoId, capaId, fecha, petroleo, agua, gas, agua_iny
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        input.id,
-        input.proyectoId,
-        input.pozoId,
-        input.capaId,
-        input.fecha,
-        input.petroleo,
-        input.agua,
-        input.gas,
-        input.aguaIny,
-      ]
+        (input as any).id,
+        (input as any).proyectoId,
+        (input as any).pozoId,
+        (input as any).capaId,
+        (input as any).fecha,
+        (input as any).petroleo,
+        (input as any).agua,
+        (input as any).gas,
+        aguaIny,
+      ],
     );
 
     const rows = await databaseService.readAll(
@@ -40,7 +44,7 @@ export class ProductionRepository {
        FROM Produccion
        WHERE id = ?
        LIMIT 1`,
-      [input.id]
+      [(input as any).id],
     );
 
     if (rows.length === 0) {
@@ -56,7 +60,7 @@ export class ProductionRepository {
        FROM Produccion
        WHERE proyectoId = ?
        ORDER BY fecha ASC, id ASC`,
-      [proyectoId]
+      [proyectoId],
     );
 
     return rows.map(mapProduccion);

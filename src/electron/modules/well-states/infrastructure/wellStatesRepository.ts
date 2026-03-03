@@ -1,3 +1,4 @@
+// src/electron/modules/well-states/infrastructure/wellStatesRepository.ts
 import type {
   SetEstadoPozos,
   SetEstadoPozosDetalle,
@@ -14,10 +15,19 @@ function mapTipo(row: Record<string, unknown>): TipoEstadoPozo {
   return { id: String(row.id), nombre: String(row.nombre) };
 }
 
+function toNullableId(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v);
+  if (!s || s.toLowerCase() === "null" || s.toLowerCase() === "undefined")
+    return null;
+  return s;
+}
+
 function mapSet(row: Record<string, unknown>): SetEstadoPozos {
   return {
     id: String(row.id),
-    simulacionId: String(row.simulacionId),
+    proyectoId: String(row.proyectoId),
+    simulacionId: toNullableId(row.simulacionId),
     nombre: String(row.nombre),
     createdAt: String(row.createdAt),
     updatedAt: String(row.updatedAt),
@@ -43,10 +53,12 @@ export class WellStatesRepository {
       "INSERT INTO TipoEstadoPozo (id, nombre) VALUES (?, ?)",
       [input.id, input.nombre],
     );
+
     const rows = await databaseService.readAll(
       "SELECT id, nombre FROM TipoEstadoPozo WHERE id = ? LIMIT 1",
       [input.id],
     );
+
     if (rows.length === 0) throw new Error("TipoEstadoPozo creation failed");
     return mapTipo(rows[0]);
   }
@@ -64,12 +76,14 @@ export class WellStatesRepository {
     const now = new Date().toISOString();
 
     await databaseService.run(
-      "INSERT INTO SetEstadoPozos (id, simulacionId, nombre, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)",
-      [input.id, input.simulacionId, input.nombre, now, now],
+      `INSERT INTO SetEstadoPozos (id, proyectoId, simulacionId, nombre, createdAt, updatedAt)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [input.id, input.proyectoId, input.simulacionId, input.nombre, now, now],
     );
 
     const rows = await databaseService.readAll(
-      "SELECT id, simulacionId, nombre, createdAt, updatedAt FROM SetEstadoPozos WHERE id = ? LIMIT 1",
+      `SELECT id, proyectoId, simulacionId, nombre, createdAt, updatedAt
+       FROM SetEstadoPozos WHERE id = ? LIMIT 1`,
       [input.id],
     );
 
@@ -77,19 +91,14 @@ export class WellStatesRepository {
     return mapSet(rows[0]);
   }
 
-  /**
-   * ✅ Mantenemos este método por compatibilidad con el IPC actual,
-   * pero ahora proyectoId se deriva vía JOIN con Simulacion.
-   */
   async listSetsEstadoPozosByProject(
     proyectoId: string,
   ): Promise<SetEstadoPozos[]> {
     const rows = await databaseService.readAll(
-      `SELECT s.id, s.simulacionId, s.nombre, s.createdAt, s.updatedAt
-       FROM SetEstadoPozos s
-       JOIN Simulacion sim ON sim.id = s.simulacionId
-       WHERE sim.proyectoId = ?
-       ORDER BY s.createdAt ASC`,
+      `SELECT id, proyectoId, simulacionId, nombre, createdAt, updatedAt
+       FROM SetEstadoPozos
+       WHERE proyectoId = ?
+       ORDER BY createdAt ASC`,
       [proyectoId],
     );
 
@@ -100,6 +109,7 @@ export class WellStatesRepository {
     input: CreateSetEstadoPozosDetalleInput,
   ): Promise<SetEstadoPozosDetalle> {
     const now = new Date().toISOString();
+
     await databaseService.run(
       `INSERT INTO SetEstadoPozosDetalle (
         id, setEstadoPozosId, pozoId, tipoEstadoPozoId, createdAt, updatedAt
@@ -120,8 +130,10 @@ export class WellStatesRepository {
       [input.id],
     );
 
-    if (rows.length === 0)
+    if (rows.length === 0) {
       throw new Error("SetEstadoPozosDetalle creation failed");
+    }
+
     return mapDetalle(rows[0]);
   }
 

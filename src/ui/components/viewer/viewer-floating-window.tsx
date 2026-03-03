@@ -45,15 +45,17 @@ import {
 
 // ✅ Tipos del snapshot
 import type { PozoPoint, Elipse as ElipseType } from "../../types/mapa";
-import type { ProduccionPozo } from "../../types/produccion";
 
 // ✅ ENGINE bubbles types
 import type { BubblesStyleConfig as EngineBubblesStyleConfig } from "../../viewer/engine/layers/bubbles/bubbles-layer";
 
-// ✅ STORE bubbles types (NO mezclar con el engine)
+// ✅ STORE bubbles types
 import { useBubblesStyle } from "../../store/bubbles-style";
 
 import { BubblesOptionsModal } from "../mapa/bubbles-options-modal";
+
+// ✅ NUEVO: producción desde escenarios (v2)
+import { useEscenarioProduccionForCapa } from "../../hooks/use-escenario-produccion-for-capa";
 
 type Position = { x: number; y: number };
 type Size = { width: number; height: number };
@@ -162,46 +164,6 @@ function toPozoPoints(wells: any[]): PozoPoint[] {
 }
 
 // =========================
-// Helpers (escenarios v2)
-// =========================
-function normalizeName(name: string): string {
-  return name.trim().toLowerCase().replace(/\s+/g, "").replace(/-/g, "");
-}
-
-function isLikelyProductionTypeName(tipoNombre: string) {
-  const t = normalizeName(tipoNombre);
-  return t.includes("prod") || t.includes("hist");
-}
-
-function pickBestScenarioForViewer(
-  escenarios: Escenario[],
-  tipos: TipoEscenario[],
-): { escenario: Escenario | null; reason: string } {
-  if (!escenarios.length) return { escenario: null, reason: "NO_SCENARIOS" };
-
-  const tipoById = new Map(tipos.map((t) => [t.id, t] as const));
-
-  // 1) Preferir tipo “producción/hist”
-  for (const e of escenarios) {
-    const tipo = tipoById.get(e.tipoEscenarioId);
-    if (tipo && isLikelyProductionTypeName(tipo.nombre)) {
-      return { escenario: e, reason: `TYPE_MATCH:${tipo.nombre}` };
-    }
-  }
-
-  // 2) Preferir nombre del escenario
-  for (const e of escenarios) {
-    const n = normalizeName(e.nombre);
-    if (n.includes("prod") || n.includes("hist")) {
-      return { escenario: e, reason: `NAME_MATCH:${e.nombre}` };
-    }
-  }
-
-  // 3) fallback: más reciente (tu repo los ordena DESC)
-  return { escenario: escenarios[0], reason: "FALLBACK_MOST_RECENT" };
-}
-
-// =========================
 // Helpers (filtros de elipses)
 // =========================
 function parseRuleNumber(raw: string): number | null {
@@ -214,7 +176,7 @@ function parseRuleNumber(raw: string): number | null {
 }
 
 function isValidValue(v: unknown): v is number {
-  // tu regla: válido si es finito y distinto de 0
+  // válido si es finito y distinto de 0
   return typeof v === "number" && Number.isFinite(v) && v !== 0;
 }
 
@@ -241,11 +203,9 @@ function getEffectiveValueForDate(
     return isValidValue(v) ? v : null;
   }
 
-  // histórico: si la fecha actual es válida, gana
   const direct = map[fecha];
   if (isValidValue(direct)) return direct;
 
-  // buscar hacia atrás (YYYY-MM-DD compara lexicográficamente)
   let bestDate: string | null = null;
   let bestValue: number | null = null;
 
@@ -332,14 +292,13 @@ export function ViewerFloatingWindow({
   const [isElipsesOptionsOpen, setIsElipsesOptionsOpen] = React.useState(false);
   const [isBubblesOptionsOpen, setIsBubblesOptionsOpen] = React.useState(false);
 
-  // ✅ bubbles store (tipado correcto)
+  // ✅ bubbles store
   const bubblesConfig = useBubblesStyle((s) => s.config);
   const setBubblesConfig = useBubblesStyle((s) => s.setConfig);
   const resetBubblesConfig = useBubblesStyle((s) => s.reset);
   const bubbleMetric = useBubblesStyle((s) => s.metric);
   const setBubblesMetric = useBubblesStyle((s) => s.setMetric);
 
-  // ✅ IMPORTANTÍSIMO: no uses destructuring {config: ...} porque te mezcla tipos fácil
   const bubblesStoreCfg = useBubblesStyle(
     (s) => s.config,
   ) as StoreBubblesStyleConfig;
@@ -350,17 +309,16 @@ export function ViewerFloatingWindow({
     return {
       ...cfg,
       hideNull: true,
-
-      // ✅ defaults robustos (aunque venga vacío)
       renderMode: cfg.renderMode ?? "circle",
       pieKeys: cfg.pieKeys?.length
         ? cfg.pieKeys
-        : ["petroleo", "agua", "gas", "aguaIny"],
+        : ["petroleo", "agua", "gas", "inyeccionAgua", "inyeccionGas"],
       pieColors: cfg.pieColors ?? {
         petroleo: "#2b2b2b",
         agua: "#2f80ed",
         gas: "#f2c94c",
-        aguaIny: "#56ccf2",
+        inyeccionAgua: "#56ccf2",
+        inyeccionGas: "#9b51e0",
       },
       pieMinTotal: Number.isFinite(cfg.pieMinTotal) ? cfg.pieMinTotal : 0,
       pieInnerRadiusRatio: Number.isFinite(cfg.pieInnerRadiusRatio)
@@ -373,12 +331,60 @@ export function ViewerFloatingWindow({
   const [showElipsesReferences, setShowElipsesReferences] =
     React.useState(true);
 
-  // ✅ Selección global v2: solo proyecto
-  const proyectoId = useSelectionStore((s) => s.selectedProyectoId);
+  // =========================
+  // ✅ Selección global (v2)
+  // =========================
+  const proyectoId = useSelectionStore(
+    (s: any) => s.selectedProyectoId ?? null,
+  );
 
-  // ✅ COMPAT: mientras pozos/elipses/normalización sigan legacy,
-  // usamos proyectoId como "id operativo" (antes yacimientoId).
-  const yacimientoIdCompat = proyectoId ?? null;
+  /**
+   * v2: elipses dependen de Simulacion
+   */
+  const simulacionId = useSelectionStore(
+    (s: any) => s.selectedSimulacionId ?? null,
+  );
+
+  /**
+   * v2: producción por Escenario
+   */
+  const escenarioId = useSelectionStore(
+    (s: any) => s.selectedEscenarioId ?? null,
+  );
+
+  // ✅ Resolver capaId desde (proyectoId + nombre de capa)
+  const [capaId, setCapaId] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    let cancelled = false;
+
+    async function run() {
+      if (!proyectoId || !capa) {
+        setCapaId(null);
+        return;
+      }
+
+      try {
+        const capas = await window.electron.coreCapaListByProject({
+          proyectoId,
+        });
+        const match =
+          capas.find(
+            (c) =>
+              String((c as any).nombre ?? "").trim() === String(capa).trim(),
+          ) ?? null;
+
+        if (!cancelled) setCapaId(match?.id ?? null);
+      } catch {
+        if (!cancelled) setCapaId(null);
+      }
+    }
+
+    run();
+    return () => {
+      cancelled = true;
+    };
+  }, [proyectoId, capa]);
 
   // ✅ MapaDisplayStore bridge (DatosMapaFloatingWindow)
   const makeKey = useMapaDisplayStore((s) => s.makeKey);
@@ -390,8 +396,9 @@ export function ViewerFloatingWindow({
       proyectoId: proyectoId ?? null,
       capa: capa ?? null,
       variable: variable ?? null,
-    });
-  }, [makeKey, proyectoId, capa, variable]);
+      simulacionId: simulacionId ?? null,
+    } as any);
+  }, [makeKey, proyectoId, capa, variable, simulacionId]);
 
   // ✅ filtros por mapKey
   const ensureFilters = useMapaElipsesFiltersStore((s) => s.ensure);
@@ -408,7 +415,7 @@ export function ViewerFloatingWindow({
   const ruleRows = filtersForKey?.rows ?? [];
 
   // =========================
-  // 1) Rango de fechas del proyecto
+  // 1) Rango de fechas del proyecto (v2)
   // =========================
   const {
     proyectos,
@@ -457,26 +464,30 @@ export function ViewerFloatingWindow({
       return;
     }
 
-    // ⚠️ Legacy en tu store/hook de proyectos (cuando migres proyectos, lo cambiamos):
-    const fi = (proyecto as any).fecha_inicio as string | null | undefined;
-    const ff = (proyecto as any).fecha_fin as string | null | undefined;
+    // ✅ v2: limitesTemporalDesde / limitesTemporalHasta
+    const fi =
+      (proyecto as any).limitesTemporalDesde ??
+      (proyecto as any).fecha_inicio ??
+      null;
+    const ff =
+      (proyecto as any).limitesTemporalHasta ??
+      (proyecto as any).fecha_fin ??
+      null;
 
     if (!fi || !ff) {
       setProjectMonths([]);
       setProjectError(
-        "El proyecto debe tener fecha_inicio y fecha_fin para generar el rango de meses.",
+        "El proyecto debe tener limitesTemporalDesde y limitesTemporalHasta para generar el rango.",
       );
       return;
     }
 
-    const start = parseIsoDate(fi);
-    const end = parseIsoDate(ff);
+    const start = parseIsoDate(String(fi));
+    const end = parseIsoDate(String(ff));
 
     if (!start || !end) {
       setProjectMonths([]);
-      setProjectError(
-        "Formato inválido en fecha_inicio/fecha_fin del proyecto.",
-      );
+      setProjectError("Formato inválido en límites temporales del proyecto.");
       return;
     }
 
@@ -522,157 +533,19 @@ export function ViewerFloatingWindow({
       availableDates.length - 1;
 
   // =========================
-  // 4.5) Producción v2 (Escenario + ValorEscenario)
+  // 4.5) Producción (v2) — desde escenarios (FUERA del viewer)
   // =========================
-  const [produccionRows, setProduccionRows] = React.useState<ProduccionPozo[]>(
-    [],
-  );
-  const [produccionLoading, setProduccionLoading] = React.useState(false);
-  const [produccionError, setProduccionError] = React.useState<string | null>(
-    null,
-  );
+  const prod = useEscenarioProduccionForCapa({
+    proyectoId: proyectoId ?? null,
+    escenarioId: escenarioId ?? null,
+    capaId: capaId ?? null,
+    fecha: selectedDate ?? null,
+  });
 
-  const canQueryProduccion = !!proyectoId && !!capa && !!selectedDate;
-
-  const loadProduccion = React.useCallback(async () => {
-    if (!canQueryProduccion) {
-      setProduccionRows([]);
-      setProduccionError(null);
-      setProduccionLoading(false);
-      return;
-    }
-
-    const missing: string[] = [];
-    if (!window.electron?.coreCapaListByProject)
-      missing.push("coreCapaListByProject");
-    if (!window.electron?.corePozoListByProject)
-      missing.push("corePozoListByProject");
-    if (!window.electron?.scenarioListByProject)
-      missing.push("scenarioListByProject");
-    if (!window.electron?.scenarioTypeList) missing.push("scenarioTypeList");
-    if (!window.electron?.scenarioValueListByEscenario)
-      missing.push("scenarioValueListByEscenario");
-
-    if (missing.length) {
-      setProduccionError(
-        `IPC no disponible: window.electron.${missing.join(", ")}()`,
-      );
-      setProduccionRows([]);
-      setProduccionLoading(false);
-      return;
-    }
-
-    setProduccionLoading(true);
-    setProduccionError(null);
-
-    try {
-      const [capas, pozos, escenarios, tipos] = await Promise.all([
-        window.electron.coreCapaListByProject({ proyectoId: proyectoId! }),
-        window.electron.corePozoListByProject({ proyectoId: proyectoId! }),
-        window.electron.scenarioListByProject({ proyectoId: proyectoId! }),
-        window.electron.scenarioTypeList(),
-      ]);
-
-      // resolver capaId por nombre
-      const needle = normalizeName(capa!);
-      const capaFound =
-        (capas ?? []).find(
-          (c) => normalizeName(String((c as any).nombre ?? "")) === needle,
-        ) ?? null;
-
-      if (!capaFound?.id) {
-        setProduccionRows([]);
-        setProduccionError(`No se encontró la capa "${capa}" en el proyecto.`);
-        return;
-      }
-
-      const capaId = String(capaFound.id);
-
-      // elegir escenario preferido (producción/hist)
-      const pick = pickBestScenarioForViewer(escenarios ?? [], tipos ?? []);
-      if (!pick.escenario) {
-        setProduccionRows([]);
-        setProduccionError(
-          "No hay escenarios en este proyecto. Creá un escenario de producción/histórico.",
-        );
-        return;
-      }
-
-      const escenario = pick.escenario;
-
-      // cargar valores del escenario y filtrar por capaId+fecha
-      const valores = await window.electron.scenarioValueListByEscenario({
-        escenarioId: escenario.id,
-      });
-
-      const valoresFiltrados = (valores ?? []).filter((v) => {
-        return (
-          String((v as any).capaId) === capaId &&
-          String((v as any).fecha) === String(selectedDate!)
-        );
-      });
-
-      // mapear pozos por id
-      const pozoById = new Map(
-        (pozos ?? []).map((p) => [
-          String((p as any).id),
-          {
-            id: String((p as any).id),
-            nombre: String((p as any).nombre ?? "—"),
-            x:
-              typeof (p as any).x === "number" && Number.isFinite((p as any).x)
-                ? (p as any).x
-                : null,
-            y:
-              typeof (p as any).y === "number" && Number.isFinite((p as any).y)
-                ? (p as any).y
-                : null,
-          },
-        ]),
-      );
-
-      // construir rows para bubbles + snapshot
-      const out: ProduccionPozo[] = (valoresFiltrados ?? []).map((v) => {
-        const pozoId = String((v as any).pozoId);
-        const pozo = pozoById.get(pozoId) ?? {
-          id: pozoId,
-          nombre: "—",
-          x: null,
-          y: null,
-        };
-
-        // ⚠️ ProduccionPozo es legacy; completamos fields típicos.
-        // Si tu tipo tiene más campos, lo ajustamos cuando lo pegues.
-        return {
-          id: pozo.id,
-          nombre: pozo.nombre,
-          x: pozo.x,
-          y: pozo.y,
-          petroleo: (v as any).petroleo ?? null,
-          agua: (v as any).agua ?? null,
-          gas: (v as any).gas ?? null,
-          agua_iny: (v as any).inyeccionAgua ?? null,
-        } as unknown as ProduccionPozo;
-      });
-
-      out.sort((a: any, b: any) =>
-        String(a?.nombre ?? "").localeCompare(String(b?.nombre ?? ""), "es", {
-          sensitivity: "base",
-        }),
-      );
-
-      setProduccionRows(out);
-    } catch (e: any) {
-      setProduccionRows([]);
-      setProduccionError(e?.message ?? String(e));
-    } finally {
-      setProduccionLoading(false);
-    }
-  }, [canQueryProduccion, proyectoId, capa, selectedDate]);
-
-  React.useEffect(() => {
-    loadProduccion();
-  }, [loadProduccion]);
+  // ✅ mantenemos naming para no tocar el resto del archivo
+  const produccionRows = prod.rows as any[];
+  const produccionLoading = prod.loading;
+  const produccionError = prod.error;
 
   // =========================
   // 2) Mapa (heatmap) desde hook
@@ -685,7 +558,8 @@ export function ViewerFloatingWindow({
     dataMin,
     dataMax,
   } = useViewerMapa({
-    capa,
+    proyectoId: proyectoId ?? null,
+    capa: capa ?? null,
     variable,
     heatmapStyle,
   });
@@ -693,8 +567,8 @@ export function ViewerFloatingWindow({
   const mapaDataForViewer = React.useMemo(() => {
     if (!mapaData) return null;
 
-    const xEdges = (mapaData as any).xEdges;
-    const yEdges = (mapaData as any).yEdges;
+    const xEdges = (mapaData as any).xEdges ?? (mapaData as any).xedges;
+    const yEdges = (mapaData as any).yEdges ?? (mapaData as any).yedges;
     const grid = (mapaData as any).grid;
 
     if (
@@ -713,25 +587,26 @@ export function ViewerFloatingWindow({
   }, [mapaData]);
 
   // =========================
-  // 3) Pozos por fecha/capa (legacy hook)
+  // 3) Pozos por fecha/capa/proyecto (v2)
   // =========================
   const { wells, error: wellsError } = useViewerWells({
-    yacimientoId: yacimientoIdCompat ?? null,
+    proyectoId: proyectoId ?? null,
     capa,
     selectedDate,
-  });
+  } as any);
 
   // =========================
-  // 4) Elipses (legacy)
+  // 4) Elipses (v2: por simulacion + capa)
   // =========================
   const {
     elipses,
     loading: elipsesLoading,
     error: elipsesError,
   } = useViewerElipses({
-    yacimientoId: yacimientoIdCompat ?? null,
+    proyectoId: proyectoId ?? null,
+    simulacionId: simulacionId ?? null,
     capa,
-  });
+  } as any);
 
   const elipseVariables = React.useMemo(() => {
     const set = new Set<string>();
@@ -851,7 +726,6 @@ export function ViewerFloatingWindow({
 
   const hasMapa = !!mapaData && !mapaLoading && !mapaError && !mapaMissing;
 
-  // Para MapOptionsModal
   const gridMin = Number.isFinite(dataMin as any) ? (dataMin as number) : 0;
   const gridMax = Number.isFinite(dataMax as any) ? (dataMax as number) : 1;
 
@@ -876,7 +750,7 @@ export function ViewerFloatingWindow({
   };
 
   // =========================
-  // 5) Normalización (legacy, usa yacimientoId en hook)
+  // 5) Normalización (DB) - v2
   // =========================
   const backendFecha = React.useMemo(
     () => toBackendDate(selectedDate),
@@ -884,137 +758,149 @@ export function ViewerFloatingWindow({
   );
 
   const normGlobal = useElipsesNormalization({
-    yacimientoId: yacimientoIdCompat ?? null,
+    proyectoId: proyectoId ?? null,
+    simulacionId: simulacionId ?? null,
     capaNombre: capa ?? null,
     fecha: backendFecha,
     scope: normalizationScope,
-  });
+  } as any);
 
   React.useEffect(() => {
     clearNormalizationRanges();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [yacimientoIdCompat, capa, backendFecha, normalizationScope]);
+  }, [proyectoId, simulacionId, capa, backendFecha, normalizationScope]);
 
   React.useEffect(() => {
     if (normGlobal.loading) return;
     if (normGlobal.error) return;
-    if (!yacimientoIdCompat) return;
+    if (!proyectoId) return;
 
     setNormalizationRanges(normGlobal.ranges ?? {}, {
       scope: normalizationScope,
-      yacimientoId: yacimientoIdCompat ?? null,
+      proyectoId: proyectoId ?? null,
+      simulacionId: simulacionId ?? null,
       capaNombre: capa ?? null,
       fecha: backendFecha,
-    });
+    } as any);
   }, [
     normGlobal.loading,
     normGlobal.error,
     normGlobal.ranges,
     setNormalizationRanges,
     normalizationScope,
-    yacimientoIdCompat,
+    proyectoId,
+    simulacionId,
     capa,
     backendFecha,
   ]);
 
   const normFill = useElipsesNormalization({
-    yacimientoId: yacimientoIdCompat ?? null,
+    proyectoId: proyectoId ?? null,
+    simulacionId: simulacionId ?? null,
     capaNombre: capa ?? null,
     fecha: backendFecha,
     scope: fillNormalizationScope,
-  });
+  } as any);
 
   React.useEffect(() => {
     clearFillNormalizationRanges();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [yacimientoIdCompat, capa, backendFecha, fillNormalizationScope]);
+  }, [proyectoId, simulacionId, capa, backendFecha, fillNormalizationScope]);
 
   React.useEffect(() => {
     if (normFill.loading) return;
     if (normFill.error) return;
-    if (!yacimientoIdCompat) return;
+    if (!proyectoId) return;
 
     setFillNormalizationRanges(normFill.ranges ?? {}, {
       scope: fillNormalizationScope,
-      yacimientoId: yacimientoIdCompat ?? null,
+      proyectoId: proyectoId ?? null,
+      simulacionId: simulacionId ?? null,
       capaNombre: capa ?? null,
       fecha: backendFecha,
-    });
+    } as any);
   }, [
     normFill.loading,
     normFill.error,
     normFill.ranges,
     setFillNormalizationRanges,
     fillNormalizationScope,
-    yacimientoIdCompat,
+    proyectoId,
+    simulacionId,
     capa,
     backendFecha,
   ]);
 
   const normContour = useElipsesNormalization({
-    yacimientoId: yacimientoIdCompat ?? null,
+    proyectoId: proyectoId ?? null,
+    simulacionId: simulacionId ?? null,
     capaNombre: capa ?? null,
     fecha: backendFecha,
     scope: contourNormalizationScope,
-  });
+  } as any);
 
   React.useEffect(() => {
     clearContourNormalizationRanges();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [yacimientoIdCompat, capa, backendFecha, contourNormalizationScope]);
+  }, [proyectoId, simulacionId, capa, backendFecha, contourNormalizationScope]);
 
   React.useEffect(() => {
     if (normContour.loading) return;
     if (normContour.error) return;
-    if (!yacimientoIdCompat) return;
+    if (!proyectoId) return;
 
     setContourNormalizationRanges(normContour.ranges ?? {}, {
       scope: contourNormalizationScope,
-      yacimientoId: yacimientoIdCompat ?? null,
+      proyectoId: proyectoId ?? null,
+      simulacionId: simulacionId ?? null,
       capaNombre: capa ?? null,
       fecha: backendFecha,
-    });
+    } as any);
   }, [
     normContour.loading,
     normContour.error,
     normContour.ranges,
     setContourNormalizationRanges,
     contourNormalizationScope,
-    yacimientoIdCompat,
+    proyectoId,
+    simulacionId,
     capa,
     backendFecha,
   ]);
 
   const normAxis = useElipsesNormalization({
-    yacimientoId: yacimientoIdCompat ?? null,
+    proyectoId: proyectoId ?? null,
+    simulacionId: simulacionId ?? null,
     capaNombre: capa ?? null,
     fecha: backendFecha,
     scope: axisNormalizationScope,
-  });
+  } as any);
 
   React.useEffect(() => {
     clearAxisNormalizationRanges();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [yacimientoIdCompat, capa, backendFecha, axisNormalizationScope]);
+  }, [proyectoId, simulacionId, capa, backendFecha, axisNormalizationScope]);
 
   React.useEffect(() => {
     if (normAxis.loading) return;
     if (normAxis.error) return;
-    if (!yacimientoIdCompat) return;
+    if (!proyectoId) return;
 
     setAxisNormalizationRanges(normAxis.ranges ?? {}, {
       scope: axisNormalizationScope,
-      yacimientoId: yacimientoIdCompat ?? null,
+      proyectoId: proyectoId ?? null,
+      simulacionId: simulacionId ?? null,
       capaNombre: capa ?? null,
       fecha: backendFecha,
-    });
+    } as any);
   }, [
     normAxis.loading,
     normAxis.error,
     normAxis.ranges,
     setAxisNormalizationRanges,
     axisNormalizationScope,
-    yacimientoIdCompat,
+    proyectoId,
+    simulacionId,
     capa,
     backendFecha,
   ]);
@@ -1041,18 +927,28 @@ export function ViewerFloatingWindow({
       capa,
       variable,
       fecha: selectedDate,
+
+      // ✅ opcionales v2
+      simulacionId: simulacionId ?? null,
+      escenarioId: escenarioId ?? null,
+
       showMapa: showMapa && !!mapaData,
       showPozos,
       showElipses,
+
       pozos: pozosSnapshot,
       elipses: elipsesSnapshot,
       elipseVariables,
+
+      // ✅ producción ahora viene del hook (escenarios)
       produccion: produccionRows,
-    });
+    } as any);
   }, [
     upsertDisplayed,
     mapKey,
     proyectoId,
+    simulacionId,
+    escenarioId,
     capa,
     variable,
     selectedDate,
@@ -1078,7 +974,7 @@ export function ViewerFloatingWindow({
   }, [capa, isActive, mapKey, setActiveKey]);
 
   // =========================
-  // ✅ bubbles definitivas vía hook (usa ProduccionPozo[])
+  // ✅ bubbles definitivas vía hook
   // =========================
   const bubbles = useViewerBubbles({
     enabled: bubblesConfig.enabled,
@@ -1154,37 +1050,38 @@ export function ViewerFloatingWindow({
 
             {produccionLoading && (
               <p style={{ margin: "8px 12px", color: "#666" }}>
-                Cargando producción (escenarios)…
+                Cargando producción…
+                {prod.source === "superficie"
+                  ? " (superficie)"
+                  : prod.source === "capa"
+                    ? " (por capa)"
+                    : ""}
               </p>
             )}
             {produccionError && (
               <p style={{ margin: "8px 12px", color: "#a60" }}>
-                Error cargando producción (escenarios): {produccionError}
+                Error cargando producción: {produccionError}
               </p>
             )}
 
-            {/* Estado de normalización (informativo; no bloquea el render) */}
+            {/* Estado de normalización */}
             {!normGlobal.loading && normGlobal.error && (
               <p style={{ margin: "8px 12px", color: "#a60" }}>
-                Normalización (legacy/compat, scope={normalizationScope}):{" "}
-                {normGlobal.error}
+                Normalización (scope={normalizationScope}): {normGlobal.error}
               </p>
             )}
-
             {!normFill.loading && normFill.error && (
               <p style={{ margin: "8px 12px", color: "#a60" }}>
                 Normalización (fill, scope={fillNormalizationScope}):{" "}
                 {normFill.error}
               </p>
             )}
-
             {!normContour.loading && normContour.error && (
               <p style={{ margin: "8px 12px", color: "#a60" }}>
                 Normalización (contour, scope={contourNormalizationScope}):{" "}
                 {normContour.error}
               </p>
             )}
-
             {!normAxis.loading && normAxis.error && (
               <p style={{ margin: "8px 12px", color: "#a60" }}>
                 Normalización (axis, scope={axisNormalizationScope}):{" "}
@@ -1240,7 +1137,6 @@ export function ViewerFloatingWindow({
                   gap: 12,
                 }}
               >
-                {/* Left: Fecha + botones */}
                 <div
                   style={{
                     display: "flex",
@@ -1325,7 +1221,6 @@ export function ViewerFloatingWindow({
                   </div>
                 </div>
 
-                {/* Right: Timeline ocupa el resto */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <DateTimeline
                     options={availableDates}
@@ -1486,8 +1381,9 @@ export function ViewerFloatingWindow({
               onChangeFillNormalizationScope={setFillNormalizationScope}
               onChangeContourNormalizationScope={setContourNormalizationScope}
               onChangeAxisNormalizationScope={setAxisNormalizationScope}
-              // context (legacy/compat)
-              yacimientoId={yacimientoIdCompat}
+              // context (v2)
+              proyectoId={proyectoId ?? null}
+              simulacionId={simulacionId ?? null}
               capaNombre={capa ?? null}
               fecha={selectedDate}
             />

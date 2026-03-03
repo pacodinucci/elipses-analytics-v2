@@ -3,10 +3,9 @@ import "./ver-menu.css";
 
 type CapasBarPosition = "top" | "left";
 
-type Props = {
+type VerMenuProps = {
   isOpen: boolean;
   isAnyOpen: boolean;
-
   onClickTitle: () => void;
   onHoverTitle: () => void;
   onRequestClose: () => void;
@@ -17,6 +16,7 @@ type Props = {
 
   showCapasBar: boolean;
 
+  // ✅ NUEVO: posición barra de capas
   capasBarPosition: CapasBarPosition;
   onChangeCapasBarPosition: (pos: CapasBarPosition) => void;
 
@@ -27,7 +27,91 @@ type Props = {
   onToggleCapasBar: () => void;
 };
 
-function CheckItem({
+export function VerMenu({
+  isOpen,
+  onClickTitle,
+  onHoverTitle,
+
+  showWindowMapa,
+  showWindowTabla,
+  showWindowDatosMapa,
+
+  showCapasBar,
+
+  capasBarPosition,
+  onChangeCapasBarPosition,
+
+  onToggleMapaWindow,
+  onToggleTablaWindow,
+  onToggleDatosMapaWindow,
+
+  onToggleCapasBar,
+}: VerMenuProps) {
+  return (
+    <div className="verMenu">
+      <div
+        className="verMenu__title"
+        onClick={onClickTitle}
+        onMouseEnter={onHoverTitle}
+      >
+        Ver
+      </div>
+
+      {isOpen && (
+        <div className="verMenu__dropdown">
+          <CheckMenuItem
+            label="Ventana de mapa"
+            checked={showWindowMapa}
+            onClick={onToggleMapaWindow}
+          />
+
+          <CheckMenuItem
+            label="Ventana de producción"
+            checked={showWindowTabla}
+            onClick={onToggleTablaWindow}
+          />
+
+          <CheckMenuItem
+            label="Datos del mapa"
+            checked={showWindowDatosMapa}
+            onClick={onToggleDatosMapaWindow}
+          />
+
+          <CheckMenuItem
+            label="Barra de capas"
+            checked={showCapasBar}
+            onClick={onToggleCapasBar}
+          />
+
+          {/* ✅ Posición de la barra de capas */}
+          <div
+            className={`verMenu__group ${!showCapasBar ? "is-disabled" : ""}`}
+          >
+            <div className="verMenu__groupTitle">
+              Posición de barra de capas
+            </div>
+
+            <RadioMenuItem
+              label="Superior"
+              checked={capasBarPosition === "top"}
+              disabled={!showCapasBar}
+              onClick={() => onChangeCapasBarPosition("top")}
+            />
+
+            <RadioMenuItem
+              label="Izquierda"
+              checked={capasBarPosition === "left"}
+              disabled={!showCapasBar}
+              onClick={() => onChangeCapasBarPosition("left")}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function CheckMenuItem({
   label,
   checked,
   onClick,
@@ -37,125 +121,31 @@ function CheckItem({
   onClick: () => void;
 }) {
   return (
-    <button type="button" className="menuDropdown__item" onClick={onClick}>
-      <span
-        className={["menuDropdown__check", checked ? "is-on" : ""].join(" ")}
-      >
-        {checked ? "✓" : ""}
-      </span>
-      <span>{label}</span>
-    </button>
+    <div className="verMenu__item" onClick={onClick}>
+      <span className="verMenu__check">{checked ? "✓" : ""}</span>
+      <span className="verMenu__label">{label}</span>
+    </div>
   );
 }
 
-export function VerMenu({
-  isOpen,
-  onClickTitle,
-  onHoverTitle,
-  onRequestClose,
-
-  showWindowMapa,
-  showWindowTabla,
-  showWindowDatosMapa,
-
-  showCapasBar,
-  capasBarPosition,
-  onChangeCapasBarPosition,
-
-  onToggleMapaWindow,
-  onToggleTablaWindow,
-  onToggleDatosMapaWindow,
-
-  onToggleCapasBar,
-}: Props) {
+function RadioMenuItem({
+  label,
+  checked,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  checked: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div className="menuBarItem" onMouseEnter={onHoverTitle}>
-      <button
-        type="button"
-        className={["menuBarItem__title", isOpen ? "is-open" : ""].join(" ")}
-        onClick={onClickTitle}
-      >
-        Ver
-      </button>
-
-      {isOpen ? (
-        <div className="menuDropdown">
-          <div className="menuDropdown__sectionTitle">Ventanas</div>
-
-          <CheckItem
-            label="Mapa"
-            checked={showWindowMapa}
-            onClick={() => {
-              onToggleMapaWindow();
-              onRequestClose();
-            }}
-          />
-
-          <CheckItem
-            label="Producción"
-            checked={showWindowTabla}
-            onClick={() => {
-              onToggleTablaWindow();
-              onRequestClose();
-            }}
-          />
-
-          <CheckItem
-            label="Datos mapa"
-            checked={showWindowDatosMapa}
-            onClick={() => {
-              onToggleDatosMapaWindow();
-              onRequestClose();
-            }}
-          />
-
-          <div className="menuDropdown__divider" />
-
-          <div className="menuDropdown__sectionTitle">Capas</div>
-
-          <CheckItem
-            label="Barra de capas"
-            checked={showCapasBar}
-            onClick={() => {
-              onToggleCapasBar();
-              onRequestClose();
-            }}
-          />
-
-          <div className="menuDropdown__subRow">
-            <span className="menuDropdown__muted">Posición</span>
-            <div className="menuDropdown__pillGroup">
-              <button
-                type="button"
-                className={[
-                  "menuDropdown__pill",
-                  capasBarPosition === "top" ? "is-active" : "",
-                ].join(" ")}
-                onClick={() => {
-                  onChangeCapasBarPosition("top");
-                  onRequestClose();
-                }}
-              >
-                Arriba
-              </button>
-
-              <button
-                type="button"
-                className={[
-                  "menuDropdown__pill",
-                  capasBarPosition === "left" ? "is-active" : "",
-                ].join(" ")}
-                onClick={() => {
-                  onChangeCapasBarPosition("left");
-                  onRequestClose();
-                }}
-              >
-                Izquierda
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+    <div
+      className={`verMenu__item ${disabled ? "is-disabled" : ""}`}
+      onClick={disabled ? undefined : onClick}
+    >
+      <span className="verMenu__check">{checked ? "●" : "○"}</span>
+      <span className="verMenu__label">{label}</span>
     </div>
   );
 }

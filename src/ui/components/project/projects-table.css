@@ -1,0 +1,114 @@
+/* src/components/projects-table.css */
+
+.proyectosTable__empty {
+  margin-top: 16px;
+  font-size: 14px;
+  color: #64748b; /* slate-500 */
+}
+
+.proyectosTable__wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.proyectosTable {
+  width: 100%;
+  min-width: 900px; /* para que el overflow-x tenga sentido */
+  border-collapse: collapse;
+  border: 1px solid #e2e8f0; /* slate-200 */
+  border-radius: 8px;
+  font-size: 14px;
+  background: #fff;
+}
+
+/* Header */
+.proyectosTable__head {
+  background: #f1f5f9; /* slate-100 */
+  color: #334155; /* slate-700 */
+}
+
+.proyectosTable__th {
+  text-align: left;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-bottom: 1px solid #e2e8f0; /* slate-200 */
+  white-space: nowrap;
+}
+
+/* Body rows */
+.proyectosTable__row {
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9; /* slate-100 */
+  transition: background-color 120ms ease;
+}
+
+.proyectosTable__row:hover {
+  background: #f4f4f5; /* zinc-100 */
+}
+
+.proyectosTable__td {
+  padding: 8px 16px;
+  vertical-align: top;
+}
+
+.simpleTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed; /* ✅ evita que una columna agrande todo */
+}
+
+.simpleTable__row {
+  cursor: pointer;
+}
+
+.simpleTable__row:hover {
+  background: #f8fafc;
+}
+
+.simpleTable__row.is-active {
+  background: #eef2ff;
+}
+
+.simpleTable__cell {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  font-size: 13px;
+  color: #0f172a;
+  vertical-align: top;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simpleTable__cell--main {
+  width: 34%;
+}
+
+.simpleTable__cell--desc {
+  width: 32%;
+}
+
+.simpleTable__primary {
+  font-weight: 700;
+}
+
+.simpleTable__secondary {
+  font-size: 12px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.startPanel__desc {
+  font-size: 13px;
+  color: #475569;
+}
+
+.startPanel__placeholderBox {
+  margin-top: 10px;
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 13px;
+  color: #64748b;
+  background: #f8fafc;
+}

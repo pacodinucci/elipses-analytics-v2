@@ -1,0 +1,51 @@
+/* src/components/layout/full-screen-loader.css */
+
+.fs-loader {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.fs-loader__card {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 16px 20px;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.15);
+}
+
+.fs-loader__spinner {
+  width: 16px;
+  height: 16px;
+
+  border-radius: 50%;
+  border: 2px solid #cbd5e1; /* slate-300 */
+  border-top-color: #0f172a; /* slate-900 */
+
+  animation: fs-spin 0.9s linear infinite;
+}
+
+.fs-loader__label {
+  font-size: 13px;
+  color: #334155; /* slate-700 */
+  white-space: nowrap;
+}
+
+@keyframes fs-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}

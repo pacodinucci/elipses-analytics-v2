@@ -1,42 +1,378 @@
+/* ====== Base: app full-screen ====== */
+html,
+body,
 #root {
-  max-width: 1280px;
-  margin: 0 auto;
-  padding: 2rem;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family:
+    system-ui,
+    -apple-system,
+    Segoe UI,
+    Roboto,
+    Arial,
+    sans-serif;
+  background: #ffffff;
+  color: #0f172a;
+}
+
+/* Contenedor principal */
+.app-root {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Workspace */
+.app-workspace {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  overflow: hidden;
+
+  /* claves para que los hijos flex puedan achicarse sin romper layout */
+  min-height: 0;
+  min-width: 0;
+}
+
+/* ✅ Modo default: capas arriba */
+.app-workspace--capas-top {
+  flex-direction: column;
+}
+
+/* ✅ Modo sidebar: capas a la izquierda */
+.app-workspace--capas-left {
+  flex-direction: row;
+}
+
+/* Canvas */
+.app-canvas {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  min-width: 0; /* ✅ CLAVE para flex-row */
+  overflow: hidden;
+  background: #f8fafc;
+}
+
+/* Placeholder */
+.placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: #64748b;
+}
+
+/* ====== Empty states ====== */
+
+.empty {
+  width: 100%;
+  height: 100%;
+  min-height: 100vh;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 24px;
+  box-sizing: border-box;
+}
+
+.empty__card {
+  max-width: 420px;
+  width: 100%;
+  padding: 24px;
+  border-radius: 14px;
+  background: #ffffff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.08);
   text-align: center;
 }
 
-.logo {
-  height: 6em;
-  padding: 1.5em;
-  will-change: filter;
-  transition: filter 300ms;
-}
-.logo:hover {
-  filter: drop-shadow(0 0 2em #646cffaa);
-}
-.logo.react:hover {
-  filter: drop-shadow(0 0 2em #61dafbaa);
+.empty__title {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 700;
 }
 
-@keyframes logo-spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+.empty__text {
+  margin: 0 0 16px;
+  font-size: 13px;
+  color: #475569;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  a:nth-of-type(2) .logo {
-    animation: logo-spin infinite 20s linear;
-  }
+.empty__strong {
+  font-weight: 700;
 }
 
-.card {
-  padding: 2em;
+.empty__actions {
+  display: flex;
+  justify-content: center;
+  gap: 12px;
 }
 
-.read-the-docs {
-  color: #888;
+/* ====== Start screen (Proyectos / Yacimientos) ====== */
+
+.startScreen {
+  padding: 18px;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+/* ✅ Dos mitades reales y simétricas */
+.startScreen__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* ✅ 2 mitades */
+  gap: 16px;
+  align-items: start;
+  height: 100%;
+  min-height: 0;
+}
+
+/* (compatibilidad: si todavía usás estas clases en JSX) */
+.startScreen__grid.is-oneCol {
+  grid-template-columns: 1fr;
+  max-width: 720px;
+}
+
+.startScreen__grid.is-twoCols {
+  grid-template-columns: 1fr 1fr;
+}
+
+/* Panel */
+.startPanel {
+  /* pediste estilo más "simple" con divisor */
+  padding: 14px;
+
+  /* ✅ CLAVE: que no empuje el grid */
+  min-width: 0;
+  min-height: 0;
+
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* ✅ divisor vertical solo en el panel de la izquierda */
+.startPanel--left {
+  border-right: 1px dashed #a3a4a7;
+}
+
+/* Estado deshabilitado (yacimiento sin proyecto) */
+.startPanel.is-disabled {
+  opacity: 0.65;
+}
+
+.startPanel.is-disabled .btn {
+  cursor: not-allowed;
+}
+
+/* Top (descripción + acciones) */
+.startPanel__top {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.startPanel__desc {
+  font-size: 18px !important;
+  color: #475569;
+}
+
+/* Acciones */
+.startPanel__actionsRow {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+/* Tabla container */
+.startPanel__tableWrap {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto; /* ✅ scroll interno */
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  background: #fff;
+}
+
+/* Hints / errors */
+.startPanel__hint {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.startPanel__error {
+  font-size: 12px;
+  color: #b91c1c;
+}
+
+/* Placeholder box (yacimiento deshabilitado) */
+.startPanel__placeholderBox {
+  border: 1px dashed #cbd5e1;
+  border-radius: 10px;
+  padding: 12px;
+  font-size: 13px;
+  color: #64748b;
+  background: #f8fafc;
+}
+
+/* ====== Explorer / File-list table (sin encabezados) ====== */
+
+.simpleTable {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.simpleTable__row {
+  height: 56px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.simpleTable__row:hover {
+  background: #f8fafc;
+}
+
+.simpleTable__row.is-active {
+  background: #eef2ff;
+}
+
+.simpleTable__cell {
+  padding: 10px 12px;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
+
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* celda izquierda (icon + textos) */
+.simpleTable__cell--main {
+  width: 70%;
+}
+
+/* celda derecha (meta: fecha/alias) */
+.simpleTable__cell--meta {
+  width: 30%;
+  text-align: right;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.simpleTable__item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.simpleTable__icon {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  background: #f1f5f9;
+  border: 1px solid #e5e7eb;
+  color: #0f172a;
+}
+
+.simpleTable__texts {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.simpleTable__primary {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.simpleTable__secondary {
+  font-size: 12px;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ====== (LEGACY) lista pickList (si aún la usás en otra parte) ====== */
+
+.pickList {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.pickList__item {
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  background: white;
+  border: 0;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.pickList__item:hover {
+  background: #f8fafc;
+}
+
+.pickList__item.is-active {
+  background: #eef2ff;
+}
+
+.pickList__name {
+  font-size: 13px;
+  color: #0f172a;
+}
+
+/* Buttons */
+.btn--secondary {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+}
+
+.startScreen__grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+  height: 100%;
+  min-height: 0;
+
+  /* ✅ separador dashed entre columnas */
+  position: relative;
+}
+
+.startScreen__grid::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: calc(50% - 8px); /* mitad del grid menos la mitad del gap */
+  width: 0;
+  border-left: 2px dashed #a3a4a7;
+  pointer-events: none;
 }

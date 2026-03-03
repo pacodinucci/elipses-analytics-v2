@@ -6,21 +6,23 @@ export interface UpsertMapInput {
   id: string;
   proyectoId: string;
   capaId: string;
-  grupoVariableId: string;
+  variableMapaId?: string;
+  grupoVariableId?: string;
   xedges: number[];
   yedges: number[];
   grid: MapGrid;
 }
 
 export function validateMapInput(input: UpsertMapInput): void {
+  const resolvedVariableMapaId = input.variableMapaId ?? input.grupoVariableId;
   if (
     !input.id ||
     !input.proyectoId ||
     !input.capaId ||
-    !input.grupoVariableId
+    !resolvedVariableMapaId
   ) {
     throw new Error(
-      "Map id, proyectoId, capaId and grupoVariableId are required",
+      "Map id, proyectoId, capaId and variableMapaId (or grupoVariableId) are required",
     );
   }
 

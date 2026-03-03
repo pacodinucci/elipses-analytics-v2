@@ -1,0 +1,48 @@
+.elipsesRef {
+  position: absolute;
+  top: 8px;
+  left: 80px;
+  z-index: 100;
+
+  border-radius: 10px;
+  border: 1px solid rgba(15, 23, 42, 0.12);
+
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(6px);
+
+  padding: 8px 12px;
+
+  font-size: 11px;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+  pointer-events: none;
+}
+
+.elipsesRef__title {
+  margin-bottom: 6px;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.88);
+}
+
+.elipsesRef__list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.elipsesRef__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.elipsesRef__label {
+  width: 144px; /* w-36 */
+  color: rgba(15, 23, 42, 0.55);
+}
+
+.elipsesRef__value {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
+  color: rgba(15, 23, 42, 0.88);
+}

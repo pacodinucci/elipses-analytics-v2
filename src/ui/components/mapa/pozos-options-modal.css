@@ -1,0 +1,138 @@
+/* Layout classes para OptionsShellModal */
+.pozosOpt__w {
+  width: 980px;
+  max-width: 96vw;
+}
+
+.pozosOpt__h {
+  height: 720px;
+  max-height: 90vh;
+}
+
+.pozosOpt__grid {
+  grid-template-columns: 280px 1fr;
+}
+
+/* Footer */
+.pozosOpt__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* Cards / spacing */
+.pozosOpt__stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.pozosOpt__stack--tight {
+  gap: 10px;
+}
+
+.pozosOpt__card {
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.pozosOpt__row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pozosOpt__rowBetween {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+/* Typography */
+.pozosOpt__h11 {
+  font-size: 11px;
+  font-weight: 700;
+  color: rgba(15, 23, 42, 0.9);
+}
+
+.pozosOpt__p10 {
+  font-size: 10px;
+  color: rgba(15, 23, 42, 0.55);
+  line-height: 1.35;
+  margin-top: 4px;
+}
+
+.pozosOpt__text11 {
+  font-size: 11px;
+  color: rgba(51, 65, 85, 1);
+}
+
+/* Form controls */
+.pozosOpt__checkbox {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+}
+
+.pozosOpt__grid2 {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  align-items: center;
+  gap: 8px;
+}
+
+.pozosOpt__inline {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.pozosOpt__cols2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.pozosOpt__input {
+  border: 1px solid rgba(148, 163, 184, 1);
+  border-radius: 10px;
+  padding: 6px 8px;
+  font-size: 11px;
+  background: #fff;
+}
+
+.pozosOpt__input--full {
+  width: 100%;
+}
+
+.pozosOpt__select {
+  border: 1px solid rgba(148, 163, 184, 1);
+  border-radius: 10px;
+  padding: 6px 8px;
+  font-size: 11px;
+  background: #fff;
+}
+
+.pozosOpt__select--full {
+  width: 100%;
+}
+
+.pozosOpt__color {
+  width: 42px;
+  height: 26px;
+  border: 1px solid rgba(148, 163, 184, 1);
+  border-radius: 10px;
+  padding: 0;
+  background: transparent;
+}
+
+.pozosOpt__btnSmall {
+  padding: 6px 8px;
+  font-size: 10px;
+  line-height: 1;
+}

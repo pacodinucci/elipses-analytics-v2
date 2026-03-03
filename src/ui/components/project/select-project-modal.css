@@ -1,0 +1,102 @@
+/* src/components/project/select-project-modal.css */
+
+.modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.modalCard {
+  width: 100%;
+  max-width: 768px; /* max-w-3xl aprox */
+  max-height: 80vh;
+
+  display: flex;
+  flex-direction: column;
+
+  background: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.22);
+
+  padding: 16px;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  margin-bottom: 12px;
+}
+
+.modalTitle {
+  margin: 0;
+  font-size: 13px; /* text-sm */
+  font-weight: 700;
+  color: #0f172a; /* slate-900 */
+}
+
+.modalCloseBtn {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+
+  font-size: 12px;
+  color: #64748b; /* slate-500 */
+}
+
+.modalCloseBtn:hover {
+  color: #0f172a; /* slate-900 */
+}
+
+.modalHint {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  color: #64748b; /* slate-500 */
+}
+
+.modalError {
+  margin: 0 0 8px 0;
+  font-size: 12px;
+  color: #dc2626; /* red-600 */
+}
+
+.modalBody {
+  flex: 1;
+  min-height: 0; /* clave para overflow en flex */
+}
+
+.modalTableWrap {
+  height: 100%;
+  overflow: auto;
+
+  border: 1px solid #e2e8f0; /* slate-200 */
+  border-radius: 8px;
+}
+
+.modalFooter {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+.modalSecondaryBtn {
+  border-radius: 8px;
+  border: 1px solid #cbd5e1; /* slate-300 */
+  background: #ffffff;
+  cursor: pointer;
+
+  padding: 6px 12px;
+  font-size: 12px;
+  color: #475569; /* slate-600 */
+}
+
+.modalSecondaryBtn:hover {
+  background: #f1f5f9; /* slate-100 */
+}

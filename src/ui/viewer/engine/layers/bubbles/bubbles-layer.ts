@@ -3,8 +3,13 @@ import * as PIXI from "pixi.js";
 import type { ViewportRect } from "../../../types";
 import type { Camera2D } from "../../camera/camera-2d";
 
-/** Keys soportadas para porciones del pie */
-export type BubblePieKey = "petroleo" | "agua" | "gas" | "aguaIny";
+/** Keys soportadas para porciones del pie (v2) */
+export type BubblePieKey =
+  | "petroleo"
+  | "agua"
+  | "gas"
+  | "inyeccionAgua"
+  | "inyeccionGas";
 
 export type BubblePoint = {
   id: string;
@@ -129,13 +134,21 @@ type CachedDraw = {
   pieHash?: string;
 };
 
-const DEFAULT_PIE_KEYS: BubblePieKey[] = ["petroleo", "agua", "gas", "aguaIny"];
+// ✅ defaults PIE (v2)
+const DEFAULT_PIE_KEYS: BubblePieKey[] = [
+  "petroleo",
+  "agua",
+  "gas",
+  "inyeccionAgua",
+  "inyeccionGas",
+];
 
 const DEFAULT_PIE_COLORS: Record<BubblePieKey, string> = {
   petroleo: "#2b2b2b",
   agua: "#2f80ed",
   gas: "#f2c94c",
-  aguaIny: "#56ccf2",
+  inyeccionAgua: "#56ccf2",
+  inyeccionGas: "#9b51e0",
 };
 
 function safeNumber(v: unknown): number | null {

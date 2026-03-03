@@ -1,3 +1,4 @@
+// src/electron/shared/db/databaseService.ts
 import { mkdirSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import type { Migration } from "./migrations.js";
@@ -30,36 +31,73 @@ export class DatabaseService {
   readonly databasePath: string;
   private connectionPromise?: Promise<DuckDBConnection>;
 
+  // ✅ evita que applyMigrations corra en paralelo (single-flight)
+  private applyMigrationsPromise?: Promise<MigrationResult>;
+
   constructor(pathFromRoot = "data/backend-v2.duckdb") {
     this.databasePath = resolve(process.cwd(), pathFromRoot);
     mkdirSync(dirname(this.databasePath), { recursive: true });
   }
 
   async applyMigrations(migrations: Migration[]): Promise<MigrationResult> {
-    await this.ensureMigrationTable();
+    // ✅ single-flight para evitar carreras internas
+    if (this.applyMigrationsPromise) return this.applyMigrationsPromise;
 
-    const appliedVersions = new Set(await this.getAppliedMigrationVersions());
-    let appliedCount = 0;
-    let latestVersion = 0;
+    this.applyMigrationsPromise = (async () => {
+      await this.ensureMigrationTable();
 
-    for (const migration of migrations) {
-      latestVersion = Math.max(latestVersion, migration.version);
-      if (appliedVersions.has(migration.version)) {
-        continue;
+      const appliedVersions = new Set(await this.getAppliedMigrationVersions());
+      let appliedCount = 0;
+      let latestVersion = 0;
+
+      for (const migration of migrations) {
+        latestVersion = Math.max(latestVersion, migration.version);
+
+        if (appliedVersions.has(migration.version)) {
+          continue;
+        }
+
+        // ✅ cada migración en transacción para consistencia
+        await this.run("BEGIN TRANSACTION");
+
+        try {
+          for (const statement of migration.statements) {
+            await this.run(statement);
+          }
+
+          // ✅ registrar migración de manera idempotente
+          // DuckDB soporta ON CONFLICT DO NOTHING
+          await this.run(
+            `INSERT INTO schema_migrations (version, name, appliedAt)
+             VALUES (?, ?, ?)
+             ON CONFLICT(version) DO NOTHING`,
+            [migration.version, migration.name, new Date().toISOString()],
+          );
+
+          await this.run("COMMIT");
+
+          appliedCount += 1;
+          appliedVersions.add(migration.version);
+        } catch (err) {
+          // si algo falló, revertimos lo de esta migración
+          try {
+            await this.run("ROLLBACK");
+          } catch {
+            // noop: si rollback falla, no queremos tapar el error original
+          }
+          throw err;
+        }
       }
 
-      for (const statement of migration.statements) {
-        await this.run(statement);
-      }
+      return { latestVersion, appliedCount };
+    })();
 
-      await this.run(
-        "INSERT INTO schema_migrations (version, name, appliedAt) VALUES (?, ?, ?)",
-        [migration.version, migration.name, new Date().toISOString()]
-      );
-      appliedCount += 1;
+    try {
+      return await this.applyMigrationsPromise;
+    } finally {
+      // ✅ liberar para permitir reintentos si algo falló
+      this.applyMigrationsPromise = undefined;
     }
-
-    return { latestVersion, appliedCount };
   }
 
   async run(sql: string, params: unknown[] = []): Promise<void> {
@@ -68,11 +106,16 @@ export class DatabaseService {
   }
 
   async count(tableName: string): Promise<number> {
-    const rows = await this.readAll(`SELECT COUNT(*) as count FROM ${tableName}`);
+    const rows = await this.readAll(
+      `SELECT COUNT(*) as count FROM ${tableName}`,
+    );
     return Number(rows[0]?.count ?? 0);
   }
 
-  async readAll(sql: string, params: unknown[] = []): Promise<Array<Record<string, unknown>>> {
+  async readAll(
+    sql: string,
+    params: unknown[] = [],
+  ): Promise<Array<Record<string, unknown>>> {
     const connection = await this.getConnection();
     const reader = await connection.runAndReadAll(sql, params);
     return reader.getRowsJson();
@@ -97,7 +140,6 @@ export class DatabaseService {
     if (!this.connectionPromise) {
       this.connectionPromise = this.createConnection();
     }
-
     return this.connectionPromise;
   }
 

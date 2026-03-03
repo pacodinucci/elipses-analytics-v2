@@ -1,9 +1,17 @@
+// src/electron/shared/db/migrations.ts
 export interface Migration {
   version: number;
   name: string;
   statements: string[];
 }
 
+/**
+ * ✅ v1 (nuevo baseline):
+ * - Proyecto: SIN unidadesId
+ * - GrupoVariable: incluye proyectoId + scope desde el inicio
+ * - Variable: SIN unidadesId y SIN unidad
+ * - Unidades: entidad por proyecto (sin variableId)
+ */
 const initialSchemaStatements = [
   `CREATE TABLE IF NOT EXISTS Proyecto (
     id VARCHAR PRIMARY KEY,
@@ -21,33 +29,43 @@ const initialSchemaStatements = [
     grillaCellSizeX DOUBLE NOT NULL,
     grillaCellSizeY DOUBLE NOT NULL,
     grillaUnidad VARCHAR NOT NULL,
-    unidadesId VARCHAR NOT NULL,
     createdAt TIMESTAMP NOT NULL,
     updatedAt TIMESTAMP NOT NULL
   )`,
-  `CREATE TABLE IF NOT EXISTS Unidades (
-    id VARCHAR PRIMARY KEY,
-    proyectoId VARCHAR NOT NULL REFERENCES Proyecto(id),
-    createdAt TIMESTAMP NOT NULL,
-    updatedAt TIMESTAMP NOT NULL
-  )`,
+
   `CREATE TABLE IF NOT EXISTS GrupoVariable (
     id VARCHAR PRIMARY KEY,
+    proyectoId VARCHAR NOT NULL REFERENCES Proyecto(id),
     nombre VARCHAR NOT NULL,
-    orden INTEGER NOT NULL
+    orden INTEGER NOT NULL,
+    scope VARCHAR NOT NULL,
+    createdAt TIMESTAMP NOT NULL,
+    updatedAt TIMESTAMP NOT NULL
   )`,
+
   `CREATE TABLE IF NOT EXISTS Variable (
     id VARCHAR PRIMARY KEY,
     grupoVariableId VARCHAR NOT NULL REFERENCES GrupoVariable(id),
-    unidadesId VARCHAR NOT NULL REFERENCES Unidades(id),
     nombre VARCHAR NOT NULL,
     codigo VARCHAR NOT NULL,
     tipoDato VARCHAR NOT NULL,
-    unidad VARCHAR NOT NULL,
     configJson JSON NOT NULL,
     createdAt TIMESTAMP NOT NULL,
     updatedAt TIMESTAMP NOT NULL
   )`,
+
+  /**
+   * ✅ Unidades: entidad de catálogo por proyecto.
+   */
+  `CREATE TABLE IF NOT EXISTS Unidades (
+    id VARCHAR PRIMARY KEY,
+    proyectoId VARCHAR NOT NULL REFERENCES Proyecto(id),
+    unidad VARCHAR NOT NULL,
+    configJson JSON NOT NULL DEFAULT '{}',
+    createdAt TIMESTAMP NOT NULL,
+    updatedAt TIMESTAMP NOT NULL
+  )`,
+
   `CREATE TABLE IF NOT EXISTS Capa (
     id VARCHAR PRIMARY KEY,
     proyectoId VARCHAR NOT NULL REFERENCES Proyecto(id),
@@ -55,6 +73,7 @@ const initialSchemaStatements = [
     createdAt TIMESTAMP NOT NULL,
     updatedAt TIMESTAMP NOT NULL
   )`,
+
   `CREATE TABLE IF NOT EXISTS Pozo (
     id VARCHAR PRIMARY KEY,
     proyectoId VARCHAR NOT NULL REFERENCES Proyecto(id),
@@ -64,6 +83,7 @@ const initialSchemaStatements = [
     createdAt TIMESTAMP NOT NULL,
     updatedAt TIMESTAMP NOT NULL
   )`,
+
   `CREATE TABLE IF NOT EXISTS PozoCapa (
     id VARCHAR PRIMARY KEY,
     proyectoId VARCHAR NOT NULL REFERENCES Proyecto(id),
@@ -74,14 +94,17 @@ const initialSchemaStatements = [
     createdAt TIMESTAMP NOT NULL,
     updatedAt TIMESTAMP NOT NULL
   )`,
+
   `CREATE TABLE IF NOT EXISTS TipoSimulacion (
     id VARCHAR PRIMARY KEY,
     nombre VARCHAR NOT NULL
   )`,
+
   `CREATE TABLE IF NOT EXISTS TipoEstadoPozo (
     id VARCHAR PRIMARY KEY,
     nombre VARCHAR NOT NULL
   )`,
+
   `CREATE TABLE IF NOT EXISTS SetEstadoPozos (
     id VARCHAR PRIMARY KEY,
     proyectoId VARCHAR NOT NULL REFERENCES Proyecto(id),
@@ -89,6 +112,7 @@ const initialSchemaStatements = [
     createdAt TIMESTAMP NOT NULL,
     updatedAt TIMESTAMP NOT NULL
   )`,
+
   `CREATE TABLE IF NOT EXISTS SetEstadoPozosDetalle (
     id VARCHAR PRIMARY KEY,
     setEstadoPozosId VARCHAR NOT NULL REFERENCES SetEstadoPozos(id),
@@ -97,10 +121,12 @@ const initialSchemaStatements = [
     createdAt TIMESTAMP NOT NULL,
     updatedAt TIMESTAMP NOT NULL
   )`,
+
   `CREATE TABLE IF NOT EXISTS TipoEscenario (
     id VARCHAR PRIMARY KEY,
     nombre VARCHAR NOT NULL
   )`,
+
   `CREATE TABLE IF NOT EXISTS Escenario (
     id VARCHAR PRIMARY KEY,
     proyectoId VARCHAR NOT NULL REFERENCES Proyecto(id),
@@ -109,6 +135,7 @@ const initialSchemaStatements = [
     createdAt TIMESTAMP NOT NULL,
     updatedAt TIMESTAMP NOT NULL
   )`,
+
   `CREATE TABLE IF NOT EXISTS ValorEscenario (
     id VARCHAR PRIMARY KEY,
     escenarioId VARCHAR NOT NULL REFERENCES Escenario(id),
@@ -123,16 +150,23 @@ const initialSchemaStatements = [
     createdAt TIMESTAMP NOT NULL,
     updatedAt TIMESTAMP NOT NULL
   )`,
+
   `CREATE TABLE IF NOT EXISTS ElipseVariable (
     id VARCHAR PRIMARY KEY,
     nombre VARCHAR NOT NULL
   )`,
+
+  /**
+   * ⚠️ ElipseValor legacy (se refactoriza luego a ElipseValor v7 real)
+   * lo mantenemos como venías.
+   */
   `CREATE TABLE IF NOT EXISTS ElipseValor (
     id VARCHAR PRIMARY KEY,
     proyectoId VARCHAR NOT NULL REFERENCES Proyecto(id),
     elipseVariableId VARCHAR NOT NULL REFERENCES ElipseVariable(id),
     valor DOUBLE NOT NULL
   )`,
+
   `CREATE TABLE IF NOT EXISTS Simulacion (
     id VARCHAR PRIMARY KEY,
     proyectoId VARCHAR NOT NULL REFERENCES Proyecto(id),
@@ -142,6 +176,10 @@ const initialSchemaStatements = [
     createdAt TIMESTAMP NOT NULL,
     updatedAt TIMESTAMP NOT NULL
   )`,
+
+  /**
+   * Legacy Produccion
+   */
   `CREATE TABLE IF NOT EXISTS Produccion (
     id BIGINT PRIMARY KEY,
     proyectoId VARCHAR NOT NULL REFERENCES Proyecto(id),
@@ -153,15 +191,18 @@ const initialSchemaStatements = [
     gas DOUBLE NOT NULL,
     agua_iny DOUBLE NOT NULL
   )`,
+
   `CREATE TABLE IF NOT EXISTS VariableMapa (
     id VARCHAR PRIMARY KEY,
     nombre VARCHAR NOT NULL
   )`,
+
   `CREATE TABLE IF NOT EXISTS Mapa (
     id VARCHAR PRIMARY KEY,
     proyectoId VARCHAR NOT NULL REFERENCES Proyecto(id),
     capaId VARCHAR NOT NULL UNIQUE REFERENCES Capa(id),
     variableMapaId VARCHAR NOT NULL REFERENCES VariableMapa(id),
+    grupoVariableId VARCHAR,
     xedges JSON NOT NULL,
     yedges JSON NOT NULL,
     grid JSON NOT NULL,
@@ -171,10 +212,12 @@ const initialSchemaStatements = [
 ];
 
 const relationalHardeningStatements = [
-  `CREATE UNIQUE INDEX IF NOT EXISTS ux_unidades_proyectoId ON Unidades(proyectoId)`,
   `CREATE UNIQUE INDEX IF NOT EXISTS ux_pozocapa_project_pozo_capa ON PozoCapa(proyectoId, pozoId, capaId)`,
+
   `CREATE UNIQUE INDEX IF NOT EXISTS ux_produccion_project_pozo_capa_fecha ON Produccion(proyectoId, pozoId, capaId, fecha)`,
+
   `CREATE UNIQUE INDEX IF NOT EXISTS ux_valorescenario_escenario_pozo_capa_fecha ON ValorEscenario(escenarioId, pozoId, capaId, fecha)`,
+
   `CREATE UNIQUE INDEX IF NOT EXISTS ux_setestadopozosdetalle_set_pozo ON SetEstadoPozosDetalle(setEstadoPozosId, pozoId)`,
 ];
 
@@ -199,17 +242,10 @@ const importPipelineStatements = [
   )`,
 ];
 
-/**
- * v4: transición al nuevo dominio (additive)
- * - SetEstadoPozos: agrega simulacionId
- * - ElipseValor: agrega simulacionId
- * - Mapa: agrega grupoVariableId
- * - Backfills determinísticos donde se puede
- */
 const domainRefactorV4Statements = [
-  `ALTER TABLE SetEstadoPozos ADD COLUMN simulacionId VARCHAR`,
-  `ALTER TABLE ElipseValor ADD COLUMN simulacionId VARCHAR`,
-  `ALTER TABLE Mapa ADD COLUMN grupoVariableId VARCHAR`,
+  `ALTER TABLE SetEstadoPozos ADD COLUMN IF NOT EXISTS simulacionId VARCHAR`,
+  `ALTER TABLE ElipseValor ADD COLUMN IF NOT EXISTS simulacionId VARCHAR`,
+  `ALTER TABLE Mapa ADD COLUMN IF NOT EXISTS grupoVariableId VARCHAR`,
 
   `UPDATE SetEstadoPozos s
    SET simulacionId = sim.id
@@ -278,7 +314,7 @@ const elipsesGeometryV6Statements = [
     CHECK (array_length(x) >= 3)
   )`,
 
-  `ALTER TABLE ElipseValor ADD COLUMN elipseId VARCHAR`,
+  `ALTER TABLE ElipseValor ADD COLUMN IF NOT EXISTS elipseId VARCHAR`,
 
   `CREATE INDEX IF NOT EXISTS ix_elipse_proyecto_capa ON Elipse(proyectoId, capaId)`,
   `CREATE INDEX IF NOT EXISTS ix_elipse_capaId ON Elipse(capaId)`,
@@ -289,21 +325,12 @@ const elipsesGeometryV6Statements = [
   `CREATE INDEX IF NOT EXISTS ix_elipsevalor_sim_var ON ElipseValor(simulacionId, elipseVariableId)`,
 ];
 
-/**
- * v7: Elipses por simulación
- * - Elipse: agrega simulacionId (NULLABLE por ahora; se endurece en v8)
- * - ElipseValor: se reconstruye para depender de Elipse (sin simulacionId)
- *   y agrega createdAt/updatedAt (consistencia con el resto del dominio).
- */
 const elipsesBySimulacionV7Statements = [
-  // 1) Elipse ahora pertenece a una simulación
-  `ALTER TABLE Elipse ADD COLUMN simulacionId VARCHAR`,
+  `ALTER TABLE Elipse ADD COLUMN IF NOT EXISTS simulacionId VARCHAR`,
 
-  // índices nuevos para consultas típicas
   `CREATE INDEX IF NOT EXISTS ix_elipse_simulacionId ON Elipse(simulacionId)`,
   `CREATE INDEX IF NOT EXISTS ix_elipse_sim_capa ON Elipse(simulacionId, capaId)`,
 
-  // 2) Rebuild ElipseValor sin simulacionId (depende de elipseId)
   `CREATE TABLE IF NOT EXISTS ElipseValor__v2 (
     id VARCHAR PRIMARY KEY,
     elipseId VARCHAR NOT NULL REFERENCES Elipse(id),
@@ -314,8 +341,6 @@ const elipsesBySimulacionV7Statements = [
     UNIQUE(elipseId, elipseVariableId)
   )`,
 
-  // Copiamos lo que se pueda desde la tabla vieja:
-  // - elipseId ya existe desde v6 (puede ser NULL para legacy; esas filas no se copian)
   `INSERT INTO ElipseValor__v2 (id, elipseId, elipseVariableId, valor, createdAt, updatedAt)
    SELECT
      id,
@@ -330,15 +355,183 @@ const elipsesBySimulacionV7Statements = [
   `DROP TABLE ElipseValor`,
   `ALTER TABLE ElipseValor__v2 RENAME TO ElipseValor`,
 
-  // índices útiles
   `CREATE INDEX IF NOT EXISTS ix_elipsevalor_elipseId ON ElipseValor(elipseId)`,
   `CREATE INDEX IF NOT EXISTS ix_elipsevalor_var ON ElipseValor(elipseVariableId)`,
+];
+
+const dynamicFieldsV8Statements = [
+  `ALTER TABLE Proyecto ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+  `ALTER TABLE Unidades ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+  `ALTER TABLE GrupoVariable ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+  `ALTER TABLE Variable ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+  `ALTER TABLE Capa ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+  `ALTER TABLE Pozo ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+  `ALTER TABLE PozoCapa ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+
+  `ALTER TABLE TipoEscenario ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+  `ALTER TABLE Escenario ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+  `ALTER TABLE ValorEscenario ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+
+  `ALTER TABLE TipoSimulacion ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+  `ALTER TABLE Simulacion ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+  `ALTER TABLE TipoEstadoPozo ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+  `ALTER TABLE SetEstadoPozos ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+  `ALTER TABLE SetEstadoPozosDetalle ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+
+  `ALTER TABLE VariableMapa ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+  `ALTER TABLE Mapa ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+
+  `ALTER TABLE ElipseVariable ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+  `ALTER TABLE Elipse ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+  `ALTER TABLE ElipseValor ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+
+  `ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+  `ALTER TABLE import_job_errors ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+
+  `CREATE TABLE IF NOT EXISTS DynamicFieldDef (
+    id VARCHAR PRIMARY KEY,
+    entity VARCHAR NOT NULL,
+    key VARCHAR NOT NULL,
+    dataType VARCHAR NOT NULL,
+    label VARCHAR,
+    unit VARCHAR,
+    configJson JSON NOT NULL DEFAULT '{}',
+    createdAt TIMESTAMP NOT NULL,
+    updatedAt TIMESTAMP NOT NULL,
+    UNIQUE(entity, key)
+  )`,
+
+  `CREATE INDEX IF NOT EXISTS ix_dynamicfielddef_entity ON DynamicFieldDef(entity)`,
+];
+
+/**
+ * ✅ v9 ahora es NO-OP
+ * Porque el baseline ya nace con el modelo nuevo.
+ * (No hacemos refactors destructivos.)
+ */
+const unidadesRefactorV9Statements: string[] = [];
+
+const projectScopedVariablesV10Statements = [
+  `ALTER TABLE GrupoVariable ADD COLUMN IF NOT EXISTS proyectoId VARCHAR`,
+  `ALTER TABLE GrupoVariable ADD COLUMN IF NOT EXISTS createdAt TIMESTAMP`,
+  `ALTER TABLE GrupoVariable ADD COLUMN IF NOT EXISTS updatedAt TIMESTAMP`,
+
+  `UPDATE GrupoVariable
+   SET proyectoId = (
+     SELECT id FROM Proyecto ORDER BY createdAt ASC LIMIT 1
+   )
+   WHERE proyectoId IS NULL`,
+
+  `UPDATE GrupoVariable
+   SET createdAt = NOW()
+   WHERE createdAt IS NULL`,
+
+  `UPDATE GrupoVariable
+   SET updatedAt = NOW()
+   WHERE updatedAt IS NULL`,
+
+  `CREATE TABLE IF NOT EXISTS Unidades__v10 (
+    id VARCHAR PRIMARY KEY,
+    proyectoId VARCHAR NOT NULL REFERENCES Proyecto(id),
+    unidad VARCHAR NOT NULL,
+    configJson JSON NOT NULL DEFAULT '{}',
+    createdAt TIMESTAMP NOT NULL,
+    updatedAt TIMESTAMP NOT NULL,
+    extrasJson JSON NOT NULL DEFAULT '{}',
+    UNIQUE(proyectoId, unidad)
+  )`,
+
+  `INSERT INTO Unidades__v10 (id, proyectoId, unidad, configJson, createdAt, updatedAt, extrasJson)
+   SELECT
+     id,
+     proyectoId,
+     unidad,
+     configJson,
+     COALESCE(createdAt, NOW()) AS createdAt,
+     COALESCE(updatedAt, NOW()) AS updatedAt,
+     COALESCE(extrasJson, '{}') AS extrasJson
+   FROM (
+     SELECT
+       id,
+       proyectoId,
+       unidad,
+       configJson,
+       createdAt,
+       updatedAt,
+       extrasJson,
+       ROW_NUMBER() OVER (PARTITION BY proyectoId, unidad ORDER BY updatedAt DESC, createdAt DESC, id DESC) AS rn
+     FROM Unidades
+   ) t
+   WHERE t.rn = 1`,
+
+  `DROP TABLE Unidades`,
+  `ALTER TABLE Unidades__v10 RENAME TO Unidades`,
+
+  `CREATE INDEX IF NOT EXISTS ix_grupovariable_proyectoId ON GrupoVariable(proyectoId)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS ux_grupovariable_proyecto_scope_orden ON GrupoVariable(proyectoId, scope, orden)`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS ux_unidades_proyecto_unidad ON Unidades(proyectoId, unidad)`,
+];
+
+const removeVariableMapaV11Statements: string[] = [];
+
+const restoreVariableMapaV12Statements = [
+  `CREATE TABLE IF NOT EXISTS VariableMapa (
+    id VARCHAR PRIMARY KEY,
+    nombre VARCHAR NOT NULL
+  )`,
+
+  `ALTER TABLE VariableMapa ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+  `ALTER TABLE Mapa ADD COLUMN IF NOT EXISTS variableMapaId VARCHAR`,
+
+  `UPDATE Mapa
+   SET variableMapaId = COALESCE(variableMapaId, grupoVariableId, id)
+   WHERE variableMapaId IS NULL`,
+
+  `INSERT INTO VariableMapa (id, nombre)
+   SELECT DISTINCT m.variableMapaId, m.variableMapaId
+   FROM Mapa m
+   LEFT JOIN VariableMapa vm ON vm.id = m.variableMapaId
+   WHERE m.variableMapaId IS NOT NULL AND vm.id IS NULL`,
+
+  `CREATE TABLE IF NOT EXISTS Mapa__v12 (
+    id VARCHAR PRIMARY KEY,
+    proyectoId VARCHAR NOT NULL REFERENCES Proyecto(id),
+    capaId VARCHAR NOT NULL UNIQUE REFERENCES Capa(id),
+    variableMapaId VARCHAR NOT NULL REFERENCES VariableMapa(id),
+    grupoVariableId VARCHAR,
+    xedges JSON NOT NULL,
+    yedges JSON NOT NULL,
+    grid JSON NOT NULL,
+    createdAt TIMESTAMP NOT NULL,
+    updatedAt TIMESTAMP NOT NULL,
+    extrasJson JSON NOT NULL DEFAULT '{}'
+  )`,
+
+  `INSERT INTO Mapa__v12 (
+    id, proyectoId, capaId, variableMapaId, grupoVariableId, xedges, yedges, grid, createdAt, updatedAt, extrasJson
+  )
+   SELECT
+    id,
+    proyectoId,
+    capaId,
+    variableMapaId,
+    grupoVariableId,
+    xedges,
+    yedges,
+    grid,
+    createdAt,
+    updatedAt,
+    COALESCE(extrasJson, '{}')
+   FROM Mapa`,
+
+  `DROP TABLE Mapa`,
+  `ALTER TABLE Mapa__v12 RENAME TO Mapa`,
 ];
 
 export const migrations: Migration[] = [
   {
     version: 1,
-    name: "initial_domain_schema",
+    name: "initial_domain_schema_v9_baseline",
     statements: initialSchemaStatements,
   },
   {
@@ -366,11 +559,34 @@ export const migrations: Migration[] = [
     name: "elipses_geometry_v6",
     statements: elipsesGeometryV6Statements,
   },
-
-  // ✅ NUEVO
   {
     version: 7,
     name: "elipses_by_simulacion_v7",
     statements: elipsesBySimulacionV7Statements,
+  },
+  {
+    version: 8,
+    name: "dynamic_fields_extras_json_v8",
+    statements: dynamicFieldsV8Statements,
+  },
+  {
+    version: 9,
+    name: "unidades_refactor_v9_noop",
+    statements: unidadesRefactorV9Statements,
+  },
+  {
+    version: 10,
+    name: "project_scoped_variables_v10",
+    statements: projectScopedVariablesV10Statements,
+  },
+  {
+    version: 11,
+    name: "remove_variable_mapa_v11",
+    statements: removeVariableMapaV11Statements,
+  },
+  {
+    version: 12,
+    name: "restore_variable_mapa_v12",
+    statements: restoreVariableMapaV12Statements,
   },
 ];

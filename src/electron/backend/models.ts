@@ -1,4 +1,7 @@
+// src/electron/backend/models.ts
 export type ID = string;
+
+export type ExtrasJson = Record<string, unknown>;
 
 export interface Proyecto {
   id: ID;
@@ -16,35 +19,60 @@ export interface Proyecto {
   grillaCellSizeX: number;
   grillaCellSizeY: number;
   grillaUnidad: string;
-  unidadesId: ID;
+
   createdAt: string;
   updatedAt: string;
+
+  extrasJson?: ExtrasJson;
 }
 
+/**
+ * Unidades es una entidad del proyecto.
+ */
 export interface Unidades {
   id: ID;
   proyectoId: ID;
+  unidad: string;
+  configJson: unknown;
   createdAt: string;
   updatedAt: string;
+
+  extrasJson?: ExtrasJson;
 }
+
+export type GrupoVariableScope =
+  | "PROYECTO"
+  | "POZO"
+  | "CAPA"
+  | "ELIPSE"
+  | "ESCENARIO"
+  | "SIMULACION"
+  | "UNIDADES"
+  | "MAPA";
 
 export interface GrupoVariable {
   id: ID;
+  proyectoId: ID;
   nombre: string;
   orden: number;
+  scope: GrupoVariableScope;
+  createdAt: string;
+  updatedAt: string;
+
+  extrasJson?: ExtrasJson;
 }
 
 export interface Variable {
   id: ID;
   grupoVariableId: ID;
-  unidadesId: ID;
   nombre: string;
   codigo: string;
   tipoDato: string;
-  unidad: string;
   configJson: unknown;
   createdAt: string;
   updatedAt: string;
+
+  extrasJson?: ExtrasJson;
 }
 
 export interface Capa {
@@ -53,6 +81,8 @@ export interface Capa {
   nombre: string;
   createdAt: string;
   updatedAt: string;
+
+  extrasJson?: ExtrasJson;
 }
 
 export interface Pozo {
@@ -63,6 +93,8 @@ export interface Pozo {
   y: number;
   createdAt: string;
   updatedAt: string;
+
+  extrasJson?: ExtrasJson;
 }
 
 export interface PozoCapa {
@@ -74,24 +106,38 @@ export interface PozoCapa {
   base: number;
   createdAt: string;
   updatedAt: string;
+
+  extrasJson?: ExtrasJson;
 }
 
 export interface TipoSimulacion {
   id: ID;
   nombre: string;
+
+  extrasJson?: ExtrasJson;
 }
 
 export interface TipoEstadoPozo {
   id: ID;
   nombre: string;
+
+  extrasJson?: ExtrasJson;
 }
 
 export interface SetEstadoPozos {
   id: ID;
-  simulacionId: ID;
+
+  // ✅ existe en schema inicial
+  proyectoId: ID;
+
+  // ✅ v4 lo agrega nullable
+  simulacionId: ID | null;
+
   nombre: string;
   createdAt: string;
   updatedAt: string;
+
+  extrasJson?: ExtrasJson;
 }
 
 export interface SetEstadoPozosDetalle {
@@ -101,11 +147,15 @@ export interface SetEstadoPozosDetalle {
   tipoEstadoPozoId: ID;
   createdAt: string;
   updatedAt: string;
+
+  extrasJson?: ExtrasJson;
 }
 
 export interface TipoEscenario {
   id: ID;
   nombre: string;
+
+  extrasJson?: ExtrasJson;
 }
 
 export interface Escenario {
@@ -115,6 +165,8 @@ export interface Escenario {
   nombre: string;
   createdAt: string;
   updatedAt: string;
+
+  extrasJson?: ExtrasJson;
 }
 
 export interface ValorEscenario {
@@ -132,11 +184,15 @@ export interface ValorEscenario {
 
   createdAt: string;
   updatedAt: string;
+
+  extrasJson?: ExtrasJson;
 }
 
 export interface ElipseVariable {
   id: ID;
   nombre: string;
+
+  extrasJson?: ExtrasJson;
 }
 
 /**
@@ -145,7 +201,10 @@ export interface ElipseVariable {
 export interface Elipse {
   id: ID;
   proyectoId: ID;
-  simulacionId: ID | null; // ⚠️ nullable mientras migramos data legacy
+
+  // v7 lo agrega NULLABLE (mientras migrás legacy)
+  simulacionId: ID | null;
+
   capaId: ID;
   pozoInyectorId: ID | null;
   pozoProductorId: ID | null;
@@ -153,6 +212,8 @@ export interface Elipse {
   y: number[];
   createdAt: string;
   updatedAt: string;
+
+  extrasJson?: ExtrasJson;
 }
 
 /**
@@ -165,6 +226,8 @@ export interface ElipseValor {
   valor: number;
   createdAt: string;
   updatedAt: string;
+
+  extrasJson?: ExtrasJson;
 }
 
 export interface Simulacion {
@@ -172,10 +235,19 @@ export interface Simulacion {
   proyectoId: ID;
   tipoSimulacionId: ID;
   escenarioSimulacionId: ID;
+
+  // ✅ existe en schema inicial (legacy compat)
+  setEstadoPozosId: ID;
+
   createdAt: string;
   updatedAt: string;
+
+  extrasJson?: ExtrasJson;
 }
 
+/**
+ * Legacy (tabla Produccion todavía aparece en migrations antiguas)
+ */
 export interface Produccion {
   id: number;
   proyectoId: ID;
@@ -191,18 +263,23 @@ export interface Produccion {
 export interface VariableMapa {
   id: ID;
   nombre: string;
+
+  extrasJson?: ExtrasJson;
 }
 
 export interface Mapa {
   id: ID;
   proyectoId: ID;
   capaId: ID;
-  grupoVariableId: ID;
+  variableMapaId: ID;
+  grupoVariableId: ID | null;
   xedges: number[];
   yedges: number[];
   grid: (number | null)[][];
   createdAt: string;
   updatedAt: string;
+
+  extrasJson?: ExtrasJson;
 }
 
 export interface BackendTruthRegistry {

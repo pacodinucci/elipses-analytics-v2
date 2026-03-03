@@ -18,7 +18,10 @@ type Props = {
   // viene por scope (4 scopes)
   axisNormByScope: AxisNormByScope;
 
-  yacimientoId: string | null;
+  // ✅ v2 context (no usado en este tab, pero forma parte del contrato)
+  proyectoId: string | null;
+  simulacionId: string | null;
+
   capaNombre: string | null;
   fecha: string | null;
 };
@@ -64,8 +67,8 @@ function ModeSelect({
     >
       <option value="layer_date">Capa - Fecha Actual</option>
       <option value="layer_all">Capa - Histórico</option>
-      <option value="field_date">Yacimiento - Fecha Actual</option>
-      <option value="field_all">Yacimiento - Histórico</option>
+      <option value="field_date">Proyecto - Fecha Actual</option>
+      <option value="field_all">Proyecto - Histórico</option>
       <option value="manual">Manual</option>
     </select>
   );

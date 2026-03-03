@@ -1,0 +1,96 @@
+/* src/components/new-project-modal.css */
+
+.npm-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(0, 0, 0, 0.4);
+}
+
+.npm-modal {
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.npm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+
+  padding: 12px 16px;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.npm-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.npm-close {
+  background: none;
+  border: none;
+  font-size: 20px;
+  line-height: 1;
+  color: #94a3b8;
+  cursor: pointer;
+}
+
+.npm-close:hover {
+  color: #334155;
+}
+
+.npm-form {
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.npm-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.npm-label {
+  font-size: 13px;
+  font-weight: 500;
+  color: #334155;
+}
+
+.npm-input {
+  height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+
+  border-radius: 6px;
+  border: 1px solid #cbd5e1;
+  outline: none;
+}
+
+.npm-input:focus {
+  border-color: #0f172a;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.15);
+}
+
+.npm-error {
+  font-size: 13px;
+  color: #dc2626;
+}
+
+.npm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 8px;
+}

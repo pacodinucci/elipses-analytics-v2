@@ -7,7 +7,9 @@ function mapRowToEntity(row: Record<string, unknown>): Mapa {
     id: String(row.id),
     proyectoId: String(row.proyectoId),
     capaId: String(row.capaId),
-    grupoVariableId: String(row.grupoVariableId),
+    variableMapaId: String(row.variableMapaId),
+    grupoVariableId:
+      row.grupoVariableId == null ? null : String(row.grupoVariableId),
     xedges: JSON.parse(String(row.xedges)) as number[],
     yedges: JSON.parse(String(row.yedges)) as number[],
     grid: JSON.parse(String(row.grid)) as number[][],
@@ -19,7 +21,7 @@ function mapRowToEntity(row: Record<string, unknown>): Mapa {
 export class MapRepository {
   async getByLayer(capaId: string): Promise<Mapa | null> {
     const rows = await databaseService.readAll(
-      `SELECT id, proyectoId, capaId, grupoVariableId, xedges, yedges, grid, createdAt, updatedAt
+      `SELECT id, proyectoId, capaId, variableMapaId, grupoVariableId, xedges, yedges, grid, createdAt, updatedAt
        FROM Mapa
        WHERE capaId = ?
        LIMIT 1`,
@@ -36,17 +38,30 @@ export class MapRepository {
   async upsert(input: UpsertMapInput): Promise<Mapa> {
     const existing = await this.getByLayer(input.capaId);
     const now = new Date().toISOString();
+    const variableMapaId = input.variableMapaId ?? input.grupoVariableId;
+
+    if (!variableMapaId) {
+      throw new Error("variableMapaId (or grupoVariableId) is required");
+    }
+
+    await databaseService.run(
+      `INSERT INTO VariableMapa (id, nombre)
+       SELECT ?, ?
+       WHERE NOT EXISTS (SELECT 1 FROM VariableMapa WHERE id = ?)`,
+      [variableMapaId, variableMapaId, variableMapaId],
+    );
 
     if (!existing) {
       await databaseService.run(
         `INSERT INTO Mapa (
-          id, proyectoId, capaId, grupoVariableId, xedges, yedges, grid, createdAt, updatedAt
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          id, proyectoId, capaId, variableMapaId, grupoVariableId, xedges, yedges, grid, createdAt, updatedAt
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           input.id,
           input.proyectoId,
           input.capaId,
-          input.grupoVariableId,
+          variableMapaId,
+          input.grupoVariableId ?? variableMapaId,
           JSON.stringify(input.xedges),
           JSON.stringify(input.yedges),
           JSON.stringify(input.grid),
@@ -59,6 +74,7 @@ export class MapRepository {
         `UPDATE Mapa
          SET id = ?,
              proyectoId = ?,
+             variableMapaId = ?,
              grupoVariableId = ?,
              xedges = ?,
              yedges = ?,
@@ -68,7 +84,8 @@ export class MapRepository {
         [
           input.id,
           input.proyectoId,
-          input.grupoVariableId,
+          variableMapaId,
+          input.grupoVariableId ?? variableMapaId,
           JSON.stringify(input.xedges),
           JSON.stringify(input.yedges),
           JSON.stringify(input.grid),

@@ -1,11 +1,16 @@
-import type { Capa, Pozo, PozoCapa, Proyecto, Unidades } from "../../../backend/models.js";
+// src/electron/modules/core-data/infrastructure/coreDataRepository.ts
+import type {
+  Capa,
+  Pozo,
+  PozoCapa,
+  Proyecto,
+} from "../../../backend/models.js";
 import { databaseService } from "../../../shared/db/index.js";
 import type {
   CreateCapaInput,
   CreatePozoCapaInput,
   CreatePozoInput,
   CreateProyectoInput,
-  CreateUnidadesInput,
 } from "../domain/coreData.js";
 
 function mapProyecto(row: Record<string, unknown>): Proyecto {
@@ -25,19 +30,26 @@ function mapProyecto(row: Record<string, unknown>): Proyecto {
     grillaCellSizeX: Number(row.grillaCellSizeX),
     grillaCellSizeY: Number(row.grillaCellSizeY),
     grillaUnidad: String(row.grillaUnidad),
-    unidadesId: String(row.unidadesId),
     createdAt: String(row.createdAt),
     updatedAt: String(row.updatedAt),
+    // extrasJson puede existir, pero es opcional en el modelo
+    extrasJson:
+      row.extrasJson != null
+        ? typeof row.extrasJson === "string"
+          ? safeJson(row.extrasJson, {})
+          : (row.extrasJson as any)
+        : undefined,
   };
 }
 
-function mapUnidades(row: Record<string, unknown>): Unidades {
-  return {
-    id: String(row.id),
-    proyectoId: String(row.proyectoId),
-    createdAt: String(row.createdAt),
-    updatedAt: String(row.updatedAt),
-  };
+function safeJson(value: unknown, fallback: unknown = {}) {
+  if (value == null) return fallback;
+  if (typeof value === "object") return value;
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return fallback;
+  }
 }
 
 function mapCapa(row: Record<string, unknown>): Capa {
@@ -47,6 +59,10 @@ function mapCapa(row: Record<string, unknown>): Capa {
     nombre: String(row.nombre),
     createdAt: String(row.createdAt),
     updatedAt: String(row.updatedAt),
+    extrasJson:
+      row.extrasJson != null
+        ? (safeJson(row.extrasJson, {}) as any)
+        : undefined,
   };
 }
 
@@ -59,6 +75,10 @@ function mapPozo(row: Record<string, unknown>): Pozo {
     y: Number(row.y),
     createdAt: String(row.createdAt),
     updatedAt: String(row.updatedAt),
+    extrasJson:
+      row.extrasJson != null
+        ? (safeJson(row.extrasJson, {}) as any)
+        : undefined,
   };
 }
 
@@ -72,39 +92,17 @@ function mapPozoCapa(row: Record<string, unknown>): PozoCapa {
     base: Number(row.base),
     createdAt: String(row.createdAt),
     updatedAt: String(row.updatedAt),
+    extrasJson:
+      row.extrasJson != null
+        ? (safeJson(row.extrasJson, {}) as any)
+        : undefined,
   };
 }
 
 export class CoreDataRepository {
-  async createUnidades(input: CreateUnidadesInput): Promise<Unidades> {
-    const now = new Date().toISOString();
-
-    await databaseService.run(
-      "INSERT INTO Unidades (id, proyectoId, createdAt, updatedAt) VALUES (?, ?, ?, ?)",
-      [input.id, input.proyectoId, now, now]
-    );
-
-    const rows = await databaseService.readAll(
-      "SELECT id, proyectoId, createdAt, updatedAt FROM Unidades WHERE id = ? LIMIT 1",
-      [input.id]
-    );
-
-    if (rows.length === 0) {
-      throw new Error("Unidades creation failed");
-    }
-
-    return mapUnidades(rows[0]);
-  }
-
-  async listUnidadesByProject(proyectoId: string): Promise<Unidades[]> {
-    const rows = await databaseService.readAll(
-      "SELECT id, proyectoId, createdAt, updatedAt FROM Unidades WHERE proyectoId = ? ORDER BY createdAt ASC",
-      [proyectoId]
-    );
-
-    return rows.map(mapUnidades);
-  }
-
+  // ----------------------------
+  // Proyecto
+  // ----------------------------
   async createProyecto(input: CreateProyectoInput): Promise<Proyecto> {
     const now = new Date().toISOString();
 
@@ -113,7 +111,7 @@ export class CoreDataRepository {
         id, nombre, alias, limitesTemporalDesde, limitesTemporalHasta,
         arealMinX, arealMinY, arealMaxX, arealMaxY, arealCRS,
         grillaNx, grillaNy, grillaCellSizeX, grillaCellSizeY, grillaUnidad,
-        unidadesId, createdAt, updatedAt
+        createdAt, updatedAt, extrasJson
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         input.id,
@@ -131,125 +129,164 @@ export class CoreDataRepository {
         input.grillaCellSizeX,
         input.grillaCellSizeY,
         input.grillaUnidad,
-        input.unidadesId,
         now,
         now,
-      ]
+        JSON.stringify({}),
+      ],
     );
 
     const rows = await databaseService.readAll(
-      `SELECT id, nombre, alias, limitesTemporalDesde, limitesTemporalHasta,
+      `SELECT
+        id, nombre, alias, limitesTemporalDesde, limitesTemporalHasta,
         arealMinX, arealMinY, arealMaxX, arealMaxY, arealCRS,
         grillaNx, grillaNy, grillaCellSizeX, grillaCellSizeY, grillaUnidad,
-        unidadesId, createdAt, updatedAt
-       FROM Proyecto WHERE id = ? LIMIT 1`,
-      [input.id]
+        createdAt, updatedAt, extrasJson
+       FROM Proyecto
+       WHERE id = ?
+       LIMIT 1`,
+      [input.id],
     );
 
-    if (rows.length === 0) {
-      throw new Error("Proyecto creation failed");
-    }
-
+    if (rows.length === 0) throw new Error("Proyecto creation failed");
     return mapProyecto(rows[0]);
   }
 
   async listProyectos(): Promise<Proyecto[]> {
     const rows = await databaseService.readAll(
-      `SELECT id, nombre, alias, limitesTemporalDesde, limitesTemporalHasta,
+      `SELECT
+        id, nombre, alias, limitesTemporalDesde, limitesTemporalHasta,
         arealMinX, arealMinY, arealMaxX, arealMaxY, arealCRS,
         grillaNx, grillaNy, grillaCellSizeX, grillaCellSizeY, grillaUnidad,
-        unidadesId, createdAt, updatedAt
-       FROM Proyecto ORDER BY createdAt ASC`
+        createdAt, updatedAt, extrasJson
+       FROM Proyecto
+       ORDER BY createdAt ASC`,
     );
 
     return rows.map(mapProyecto);
   }
 
+  // ----------------------------
+  // Capa
+  // ----------------------------
   async createCapa(input: CreateCapaInput): Promise<Capa> {
     const now = new Date().toISOString();
 
     await databaseService.run(
-      "INSERT INTO Capa (id, proyectoId, nombre, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)",
-      [input.id, input.proyectoId, input.nombre, now, now]
+      `INSERT INTO Capa (id, proyectoId, nombre, createdAt, updatedAt, extrasJson)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [input.id, input.proyectoId, input.nombre, now, now, JSON.stringify({})],
     );
 
     const rows = await databaseService.readAll(
-      "SELECT id, proyectoId, nombre, createdAt, updatedAt FROM Capa WHERE id = ? LIMIT 1",
-      [input.id]
+      `SELECT id, proyectoId, nombre, createdAt, updatedAt, extrasJson
+       FROM Capa
+       WHERE id = ?
+       LIMIT 1`,
+      [input.id],
     );
 
-    if (rows.length === 0) {
-      throw new Error("Capa creation failed");
-    }
-
+    if (rows.length === 0) throw new Error("Capa creation failed");
     return mapCapa(rows[0]);
   }
 
   async listCapasByProject(proyectoId: string): Promise<Capa[]> {
     const rows = await databaseService.readAll(
-      "SELECT id, proyectoId, nombre, createdAt, updatedAt FROM Capa WHERE proyectoId = ? ORDER BY createdAt ASC",
-      [proyectoId]
+      `SELECT id, proyectoId, nombre, createdAt, updatedAt, extrasJson
+       FROM Capa
+       WHERE proyectoId = ?
+       ORDER BY createdAt ASC`,
+      [proyectoId],
     );
 
     return rows.map(mapCapa);
   }
 
+  // ----------------------------
+  // Pozo
+  // ----------------------------
   async createPozo(input: CreatePozoInput): Promise<Pozo> {
     const now = new Date().toISOString();
 
     await databaseService.run(
-      "INSERT INTO Pozo (id, proyectoId, nombre, x, y, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      [input.id, input.proyectoId, input.nombre, input.x, input.y, now, now]
+      `INSERT INTO Pozo (id, proyectoId, nombre, x, y, createdAt, updatedAt, extrasJson)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        input.id,
+        input.proyectoId,
+        input.nombre,
+        input.x,
+        input.y,
+        now,
+        now,
+        JSON.stringify({}),
+      ],
     );
 
     const rows = await databaseService.readAll(
-      "SELECT id, proyectoId, nombre, x, y, createdAt, updatedAt FROM Pozo WHERE id = ? LIMIT 1",
-      [input.id]
+      `SELECT id, proyectoId, nombre, x, y, createdAt, updatedAt, extrasJson
+       FROM Pozo
+       WHERE id = ?
+       LIMIT 1`,
+      [input.id],
     );
 
-    if (rows.length === 0) {
-      throw new Error("Pozo creation failed");
-    }
-
+    if (rows.length === 0) throw new Error("Pozo creation failed");
     return mapPozo(rows[0]);
   }
 
   async listPozosByProject(proyectoId: string): Promise<Pozo[]> {
     const rows = await databaseService.readAll(
-      "SELECT id, proyectoId, nombre, x, y, createdAt, updatedAt FROM Pozo WHERE proyectoId = ? ORDER BY createdAt ASC",
-      [proyectoId]
+      `SELECT id, proyectoId, nombre, x, y, createdAt, updatedAt, extrasJson
+       FROM Pozo
+       WHERE proyectoId = ?
+       ORDER BY createdAt ASC`,
+      [proyectoId],
     );
 
     return rows.map(mapPozo);
   }
 
+  // ----------------------------
+  // PozoCapa
+  // ----------------------------
   async createPozoCapa(input: CreatePozoCapaInput): Promise<PozoCapa> {
     const now = new Date().toISOString();
 
     await databaseService.run(
-      `INSERT INTO PozoCapa (id, proyectoId, pozoId, capaId, tope, base, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [input.id, input.proyectoId, input.pozoId, input.capaId, input.tope, input.base, now, now]
+      `INSERT INTO PozoCapa (id, proyectoId, pozoId, capaId, tope, base, createdAt, updatedAt, extrasJson)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        input.id,
+        input.proyectoId,
+        input.pozoId,
+        input.capaId,
+        input.tope,
+        input.base,
+        now,
+        now,
+        JSON.stringify({}),
+      ],
     );
 
     const rows = await databaseService.readAll(
-      `SELECT id, proyectoId, pozoId, capaId, tope, base, createdAt, updatedAt
-       FROM PozoCapa WHERE id = ? LIMIT 1`,
-      [input.id]
+      `SELECT id, proyectoId, pozoId, capaId, tope, base, createdAt, updatedAt, extrasJson
+       FROM PozoCapa
+       WHERE id = ?
+       LIMIT 1`,
+      [input.id],
     );
 
-    if (rows.length === 0) {
-      throw new Error("PozoCapa creation failed");
-    }
-
+    if (rows.length === 0) throw new Error("PozoCapa creation failed");
     return mapPozoCapa(rows[0]);
   }
 
   async listPozoCapaByProject(proyectoId: string): Promise<PozoCapa[]> {
     const rows = await databaseService.readAll(
-      `SELECT id, proyectoId, pozoId, capaId, tope, base, createdAt, updatedAt
-       FROM PozoCapa WHERE proyectoId = ? ORDER BY createdAt ASC`,
-      [proyectoId]
+      `SELECT id, proyectoId, pozoId, capaId, tope, base, createdAt, updatedAt, extrasJson
+       FROM PozoCapa
+       WHERE proyectoId = ?
+       ORDER BY createdAt ASC`,
+      [proyectoId],
     );
 
     return rows.map(mapPozoCapa);
