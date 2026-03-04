@@ -11,36 +11,8 @@ import type {
   CreatePozoCapaInput,
   CreatePozoInput,
   CreateProyectoInput,
+  RecomputeProyectoArealFromPozosInput,
 } from "../domain/coreData.js";
-
-function mapProyecto(row: Record<string, unknown>): Proyecto {
-  return {
-    id: String(row.id),
-    nombre: String(row.nombre),
-    alias: String(row.alias),
-    limitesTemporalDesde: String(row.limitesTemporalDesde),
-    limitesTemporalHasta: String(row.limitesTemporalHasta),
-    arealMinX: Number(row.arealMinX),
-    arealMinY: Number(row.arealMinY),
-    arealMaxX: Number(row.arealMaxX),
-    arealMaxY: Number(row.arealMaxY),
-    arealCRS: String(row.arealCRS),
-    grillaNx: Number(row.grillaNx),
-    grillaNy: Number(row.grillaNy),
-    grillaCellSizeX: Number(row.grillaCellSizeX),
-    grillaCellSizeY: Number(row.grillaCellSizeY),
-    grillaUnidad: String(row.grillaUnidad),
-    createdAt: String(row.createdAt),
-    updatedAt: String(row.updatedAt),
-    // extrasJson puede existir, pero es opcional en el modelo
-    extrasJson:
-      row.extrasJson != null
-        ? typeof row.extrasJson === "string"
-          ? safeJson(row.extrasJson, {})
-          : (row.extrasJson as any)
-        : undefined,
-  };
-}
 
 function safeJson(value: unknown, fallback: unknown = {}) {
   if (value == null) return fallback;
@@ -50,6 +22,42 @@ function safeJson(value: unknown, fallback: unknown = {}) {
   } catch {
     return fallback;
   }
+}
+
+function mapProyecto(row: Record<string, unknown>): Proyecto {
+  const n = (v: unknown) => (v == null ? null : Number(v));
+  const s = (v: unknown) => (v == null ? null : String(v));
+
+  return {
+    id: String(row.id),
+    nombre: String(row.nombre),
+    alias: String(row.alias),
+    limitesTemporalDesde: String(row.limitesTemporalDesde),
+    limitesTemporalHasta: String(row.limitesTemporalHasta),
+
+    arealMinX: n(row.arealMinX),
+    arealMinY: n(row.arealMinY),
+    arealMaxX: n(row.arealMaxX),
+    arealMaxY: n(row.arealMaxY),
+    arealCRS: s(row.arealCRS),
+
+    grillaNx: Number(row.grillaNx),
+    grillaNy: Number(row.grillaNy),
+
+    grillaCellSizeX: n(row.grillaCellSizeX),
+    grillaCellSizeY: n(row.grillaCellSizeY),
+
+    grillaUnidad: String(row.grillaUnidad),
+    createdAt: String(row.createdAt),
+    updatedAt: String(row.updatedAt),
+
+    extrasJson:
+      row.extrasJson != null
+        ? typeof row.extrasJson === "string"
+          ? (safeJson(row.extrasJson, {}) as any)
+          : (row.extrasJson as any)
+        : undefined,
+  };
 }
 
 function mapCapa(row: Record<string, unknown>): Capa {
@@ -119,16 +127,19 @@ export class CoreDataRepository {
         input.alias,
         input.limitesTemporalDesde,
         input.limitesTemporalHasta,
+
         input.arealMinX,
         input.arealMinY,
         input.arealMaxX,
         input.arealMaxY,
         input.arealCRS,
+
         input.grillaNx,
         input.grillaNy,
         input.grillaCellSizeX,
         input.grillaCellSizeY,
         input.grillaUnidad,
+
         now,
         now,
         JSON.stringify({}),
@@ -163,6 +174,97 @@ export class CoreDataRepository {
     );
 
     return rows.map(mapProyecto);
+  }
+
+  /**
+   * ✅ Recalcula areal desde pozos (min/max) + margenes
+   * y actualiza cellSizeX/Y según Nx/Ny.
+   * ✅ NO toca CRS (queda null por ahora).
+   */
+  async recomputeProyectoArealFromPozos(
+    input: RecomputeProyectoArealFromPozosInput,
+  ): Promise<Proyecto> {
+    const now = new Date().toISOString();
+
+    // 1) bounds de pozos
+    const boundsRows = await databaseService.readAll(
+      `SELECT
+        MIN(x) AS minX,
+        MAX(x) AS maxX,
+        MIN(y) AS minY,
+        MAX(y) AS maxY
+       FROM Pozo
+       WHERE proyectoId = ?`,
+      [input.proyectoId],
+    );
+
+    const b = boundsRows[0] as any;
+    if (
+      !b ||
+      b.minX == null ||
+      b.maxX == null ||
+      b.minY == null ||
+      b.maxY == null
+    ) {
+      throw new Error(
+        "No hay pozos en el proyecto para calcular límites areales",
+      );
+    }
+
+    const minX = Number(b.minX) - input.margenX;
+    const maxX = Number(b.maxX) + input.margenX;
+    const minY = Number(b.minY) - input.margenY;
+    const maxY = Number(b.maxY) + input.margenY;
+
+    if (!(maxX > minX) || !(maxY > minY)) {
+      throw new Error("Límites areales inválidos luego de aplicar márgenes");
+    }
+
+    // 2) Nx/Ny
+    const projRows = await databaseService.readAll(
+      `SELECT id, grillaNx, grillaNy
+       FROM Proyecto
+       WHERE id = ?
+       LIMIT 1`,
+      [input.proyectoId],
+    );
+    if (projRows.length === 0) throw new Error("Proyecto no encontrado");
+
+    const grillaNx = Number((projRows[0] as any).grillaNx);
+    const grillaNy = Number((projRows[0] as any).grillaNy);
+
+    const cellSizeX = (maxX - minX) / grillaNx;
+    const cellSizeY = (maxY - minY) / grillaNy;
+
+    // 3) update
+    await databaseService.run(
+      `UPDATE Proyecto
+       SET
+         arealMinX = ?,
+         arealMinY = ?,
+         arealMaxX = ?,
+         arealMaxY = ?,
+         grillaCellSizeX = ?,
+         grillaCellSizeY = ?,
+         updatedAt = ?
+       WHERE id = ?`,
+      [minX, minY, maxX, maxY, cellSizeX, cellSizeY, now, input.proyectoId],
+    );
+
+    const outRows = await databaseService.readAll(
+      `SELECT
+        id, nombre, alias, limitesTemporalDesde, limitesTemporalHasta,
+        arealMinX, arealMinY, arealMaxX, arealMaxY, arealCRS,
+        grillaNx, grillaNy, grillaCellSizeX, grillaCellSizeY, grillaUnidad,
+        createdAt, updatedAt, extrasJson
+       FROM Proyecto
+       WHERE id = ?
+       LIMIT 1`,
+      [input.proyectoId],
+    );
+
+    if (outRows.length === 0) throw new Error("Proyecto update failed");
+    return mapProyecto(outRows[0]);
   }
 
   // ----------------------------

@@ -1,3 +1,4 @@
+// src/electron/modules/infrastructure/importJobRepository.ts
 import { randomUUID } from "node:crypto";
 import { databaseService } from "../../../shared/db/index.js";
 import type { ImportJobError, ImportJobSummary } from "../domain/importJob.js";

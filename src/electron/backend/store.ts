@@ -3,6 +3,9 @@ import type { BackendBootstrapStatus, BackendTruthRegistry } from "./models.js";
 import { databaseService } from "../shared/db/index.js";
 import { migrations } from "../shared/db/migrations.js";
 
+// ✅ usar el bootstrap correcto de variables por proyecto
+import { variablesService } from "../modules/variables/application/variablesService.js";
+
 function nowISO() {
   return new Date().toISOString();
 }
@@ -94,7 +97,7 @@ class BackendStore {
     const updatedAt = createdAt;
 
     // ---------------------------
-    // Proyecto (✅ sin unidadesId)
+    // Proyecto demo
     // ---------------------------
     await this.db.run(
       `INSERT INTO Proyecto (
@@ -125,41 +128,71 @@ class BackendStore {
     );
 
     // ---------------------------
-    // Tipos base
+    // Tipos base (catálogos)
     // ---------------------------
-    await this.db.run("INSERT INTO TipoEscenario (id, nombre) VALUES (?, ?)", [
-      "tipo-esc-base",
-      "Base",
-    ]);
+    await this.db.run(
+      `INSERT INTO TipoEscenario (id, nombre, extrasJson)
+       SELECT ?, ?, '{}' WHERE NOT EXISTS (SELECT 1 FROM TipoEscenario WHERE id = ?)`,
+      ["tipo-esc-base", "Base", "tipo-esc-base"],
+    );
 
-    await this.db.run("INSERT INTO TipoSimulacion (id, nombre) VALUES (?, ?)", [
-      "tipo-sim-base",
-      "Base",
-    ]);
+    await this.db.run(
+      `INSERT INTO TipoSimulacion (id, nombre, extrasJson)
+       SELECT ?, ?, '{}' WHERE NOT EXISTS (SELECT 1 FROM TipoSimulacion WHERE id = ?)`,
+      ["tipo-sim-base", "Base", "tipo-sim-base"],
+    );
 
-    await this.db.run("INSERT INTO TipoEstadoPozo (id, nombre) VALUES (?, ?)", [
-      "estado-productor",
-      "Productor",
-    ]);
+    await this.db.run(
+      `INSERT INTO TipoEstadoPozo (id, nombre, extrasJson)
+       SELECT ?, ?, '{}' WHERE NOT EXISTS (SELECT 1 FROM TipoEstadoPozo WHERE id = ?)`,
+      ["estado-productor", "Productor", "estado-productor"],
+    );
+
+    // ---------------------------
+    // ✅ Catálogo global VariableMapa
+    // ---------------------------
+    // Nota: VariableMapa representa "qué variable raster" (Presión/Porosidad/etc.)
+    // No representa la estructura grid.
+    await this.db.run(
+      `INSERT INTO VariableMapa (id, nombre, extrasJson)
+       SELECT ?, ?, '{}' WHERE NOT EXISTS (SELECT 1 FROM VariableMapa WHERE id = ?)`,
+      ["vm-presion", "Presión", "vm-presion"],
+    );
 
     // ---------------------------
     // Capa + Pozo
     // ---------------------------
     await this.db.run(
-      "INSERT INTO Capa (id, proyectoId, nombre, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)",
-      ["capa-a", "proj-demo", "Capa A", createdAt, updatedAt],
+      "INSERT INTO Capa (id, proyectoId, nombre, createdAt, updatedAt, extrasJson) VALUES (?, ?, ?, ?, ?, ?)",
+      [
+        "capa-a",
+        "proj-demo",
+        "Capa A",
+        createdAt,
+        updatedAt,
+        JSON.stringify({}),
+      ],
     );
 
     await this.db.run(
-      "INSERT INTO Pozo (id, proyectoId, nombre, x, y, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?)",
-      ["pozo-a", "proj-demo", "Pozo A", 10, 20, createdAt, updatedAt],
+      "INSERT INTO Pozo (id, proyectoId, nombre, x, y, createdAt, updatedAt, extrasJson) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      [
+        "pozo-a",
+        "proj-demo",
+        "Pozo A",
+        10,
+        20,
+        createdAt,
+        updatedAt,
+        JSON.stringify({}),
+      ],
     );
 
     // ---------------------------
     // Escenario base
     // ---------------------------
     await this.db.run(
-      "INSERT INTO Escenario (id, proyectoId, tipoEscenarioId, nombre, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)",
+      "INSERT INTO Escenario (id, proyectoId, tipoEscenarioId, nombre, createdAt, updatedAt, extrasJson) VALUES (?, ?, ?, ?, ?, ?, ?)",
       [
         "esc-base",
         "proj-demo",
@@ -167,6 +200,7 @@ class BackendStore {
         "Escenario Base",
         createdAt,
         updatedAt,
+        JSON.stringify({}),
       ],
     );
 
@@ -174,29 +208,23 @@ class BackendStore {
      * ---------------------------
      * Simulación + SetEstadoPozos (compat)
      * ---------------------------
-     *
-     * Dominio nuevo:
-     * - Simulacion NO requiere setEstadoPozosId
-     * - SetEstadoPozos requiere simulacionId y NO tiene proyectoId
-     *
-     * Pero el schema transicional todavía puede tener:
-     * - Simulacion.setEstadoPozosId NOT NULL
-     * - SetEstadoPozos.proyectoId NOT NULL
-     *
-     * Entonces para seed:
-     * 1) crear SetEstadoPozos con proyectoId (legacy)
-     * 2) crear Simulacion apuntando a setEstadoPozosId (legacy)
-     * 3) actualizar SetEstadoPozos.simulacionId (columna v4) con el id de la simulación
      */
     await this.db.run(
-      "INSERT INTO SetEstadoPozos (id, proyectoId, nombre, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)",
-      ["set-estados-base", "proj-demo", "Set Base", createdAt, updatedAt],
+      "INSERT INTO SetEstadoPozos (id, proyectoId, nombre, createdAt, updatedAt, extrasJson) VALUES (?, ?, ?, ?, ?, ?)",
+      [
+        "set-estados-base",
+        "proj-demo",
+        "Set Base",
+        createdAt,
+        updatedAt,
+        JSON.stringify({}),
+      ],
     );
 
     await this.db.run(
       `INSERT INTO Simulacion (
-        id, proyectoId, tipoSimulacionId, escenarioSimulacionId, setEstadoPozosId, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        id, proyectoId, tipoSimulacionId, escenarioSimulacionId, setEstadoPozosId, createdAt, updatedAt, extrasJson
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         "sim-base",
         "proj-demo",
@@ -205,6 +233,7 @@ class BackendStore {
         "set-estados-base",
         createdAt,
         updatedAt,
+        JSON.stringify({}),
       ],
     );
 
@@ -216,8 +245,8 @@ class BackendStore {
 
     await this.db.run(
       `INSERT INTO SetEstadoPozosDetalle (
-        id, setEstadoPozosId, pozoId, tipoEstadoPozoId, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?)`,
+        id, setEstadoPozosId, pozoId, tipoEstadoPozoId, createdAt, updatedAt, extrasJson
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
         "set-det-1",
         "set-estados-base",
@@ -225,100 +254,39 @@ class BackendStore {
         "estado-productor",
         createdAt,
         updatedAt,
+        JSON.stringify({}),
       ],
     );
 
     // ---------------------------
-    // GrupoVariable para map (nuevo dominio)
+    // ✅ Bootstrap correcto por proyecto:
+    // - crea GrupoVariable por templates
+    // - crea Variables por grupo (y MAPA desde VariableMapa)
+    // - crea al menos 1 fila en Unidades
     // ---------------------------
-    await this.db.run(
-      `INSERT INTO GrupoVariable (
-        id, proyectoId, nombre, orden, scope, createdAt, updatedAt, extrasJson
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        "grp-proj-demo-mapa-base",
-        "proj-demo",
-        "Mapa Base",
-        0,
-        "MAPA",
-        createdAt,
-        updatedAt,
-        {},
-      ],
-    );
+    await variablesService.ensureDefaultsForProject("proj-demo");
 
-    await this.db.run(
-      "INSERT INTO VariableMapa (id, nombre) VALUES (?, ?)",
-      ["vm-proj-demo-grid", "Grid"],
-    );
-
+    // ---------------------------
+    // Mapa demo (usa VariableMapa)
+    // ---------------------------
+    // grupoVariableId es legacy/compat -> puede ser NULL.
     await this.db.run(
       `INSERT INTO Mapa (
-        id, proyectoId, capaId, variableMapaId, grupoVariableId, xedges, yedges, grid, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        id, proyectoId, capaId, variableMapaId, grupoVariableId,
+        xedges, yedges, grid, createdAt, updatedAt, extrasJson
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
-        "mapa-capa-a",
+        "mapa-capa-a-presion",
         "proj-demo",
         "capa-a",
-        "vm-proj-demo-grid",
-        "grp-proj-demo-mapa-base",
+        "vm-presion",
+        null,
         JSON.stringify([0, 10, 20]),
         JSON.stringify([0, 10, 20]),
         JSON.stringify([
           [1, 2],
           [3, 4],
         ]),
-        createdAt,
-        updatedAt,
-      ],
-    );
-
-    // ---------------------------
-    // ✅ NUEVO: GrupoVariable PROYECTO + Variable + Unidades(setting)
-    // ---------------------------
-    await this.db.run(
-      `INSERT INTO GrupoVariable (
-        id, proyectoId, nombre, orden, scope, createdAt, updatedAt, extrasJson
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        "grp-proj-demo-unidades",
-        "proj-demo",
-        "Unidades",
-        1,
-        "UNIDADES",
-        createdAt,
-        updatedAt,
-        {},
-      ],
-    );
-
-    await this.db.run(
-      `INSERT INTO Variable (
-        id, grupoVariableId, nombre, codigo, tipoDato, configJson, createdAt, updatedAt, extrasJson
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        "var-flow-rate",
-        "grp-proj-demo-unidades",
-        "Caudal (unidad)",
-        "FLOW_RATE_UNIT",
-        "string",
-        JSON.stringify({}),
-        createdAt,
-        updatedAt,
-        JSON.stringify({}),
-      ],
-    );
-
-    // settings: en este proyecto, FLOW_RATE_UNIT = "m3/d"
-    await this.db.run(
-      `INSERT INTO Unidades (
-        id, proyectoId, unidad, configJson, createdAt, updatedAt, extrasJson
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        "units-proj-demo-flow",
-        "proj-demo",
-        "m3/d",
-        JSON.stringify({}),
         createdAt,
         updatedAt,
         JSON.stringify({}),

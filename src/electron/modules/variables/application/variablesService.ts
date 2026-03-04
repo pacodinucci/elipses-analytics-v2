@@ -36,7 +36,11 @@ type GroupTemplate = {
   nombre: string;
   orden: number;
   scope: GrupoVariableScope;
-  variables: GroupVariableTemplate[];
+  /**
+   * Nota:
+   * - Para MAPA: NO se usa. Las variables del grupo MAPA se generan desde la tabla VariableMapa.
+   */
+  variables?: GroupVariableTemplate[];
 };
 
 const GROUP_TEMPLATES: GroupTemplate[] = [
@@ -94,7 +98,10 @@ const GROUP_TEMPLATES: GroupTemplate[] = [
     nombre: "Mapa",
     orden: 6,
     scope: "MAPA",
-    variables: [{ codigo: "GRID", nombre: "Grid", tipoDato: "json" }],
+    // 👇 Importante:
+    // NO definimos variables "GRID" acá.
+    // Las variables del grupo MAPA se generan leyendo el catálogo VariableMapa.
+    variables: [],
   },
   {
     key: "unidades",
@@ -107,6 +114,11 @@ const GROUP_TEMPLATES: GroupTemplate[] = [
     ],
   },
 ];
+
+type VariableMapaRow = {
+  id: string;
+  nombre: string;
+};
 
 export class VariablesService {
   private readonly repository = new VariablesRepository();
@@ -163,6 +175,7 @@ export class VariablesService {
     const { createdGroups, createdVariables } =
       await this.ensureProjectCatalog(proyectoId);
 
+    // ✅ asegura al menos 1 fila en Unidades por proyecto
     await this.repository.upsertUnidad({
       proyectoId,
       unidad: "m3/d",
@@ -177,6 +190,7 @@ export class VariablesService {
     createdGroups: number;
     createdVariables: number;
   }> {
+    // --- 1) asegurar grupos del proyecto
     const grupos = await this.repository.listGrupoVariable(proyectoId);
     const gruposSet = new Set(grupos.map((g) => g.id));
     const groupIdsByKey = new Map<string, string>();
@@ -201,12 +215,18 @@ export class VariablesService {
       gruposSet.add(groupId);
     }
 
+    // --- 2) asegurar variables (templates) para todos los grupos NO-MAPA
     let createdVariables = 0;
-    for (const g of GROUP_TEMPLATES) {
-      const groupId = groupIdsByKey.get(g.key) ?? this.buildGroupId(proyectoId, g.key);
 
-      for (const v of g.variables) {
+    for (const g of GROUP_TEMPLATES) {
+      if (g.scope === "MAPA") continue;
+
+      const groupId =
+        groupIdsByKey.get(g.key) ?? this.buildGroupId(proyectoId, g.key);
+
+      for (const v of g.variables ?? []) {
         const variableId = this.buildVariableId(proyectoId, g.key, v.codigo);
+
         const exists = await databaseService.readAll(
           "SELECT id FROM Variable WHERE id = ? LIMIT 1",
           [variableId],
@@ -223,28 +243,92 @@ export class VariablesService {
           extrasJson: v.extrasJson ?? {},
         });
 
-        if (g.scope === "MAPA") {
-          await databaseService.run(
-            `INSERT INTO VariableMapa (id, nombre)
-             SELECT ?, ?
-             WHERE NOT EXISTS (SELECT 1 FROM VariableMapa WHERE id = ?)`,
-            [variableId, v.nombre, variableId],
-          );
-        }
-
         createdVariables += 1;
       }
     }
 
+    // --- 3) caso especial MAPA: variables = catálogo VariableMapa
+    const mapaGroupId =
+      groupIdsByKey.get("mapa") ?? this.buildGroupId(proyectoId, "mapa");
+
+    const createdMapVars = await this.ensureMapaVariablesFromCatalog(
+      proyectoId,
+      mapaGroupId,
+    );
+
+    createdVariables += createdMapVars;
+
     return { createdGroups, createdVariables };
+  }
+
+  /**
+   * ✅ MAPA:
+   * - Lee VariableMapa (catálogo global)
+   * - Crea una Variable por cada VariableMapa dentro del grupo MAPA del proyecto
+   * - NO crea / NO modifica VariableMapa
+   */
+  private async ensureMapaVariablesFromCatalog(
+    proyectoId: string,
+    grupoVariableId: string,
+  ): Promise<number> {
+    // OJO: VariableMapa tiene extrasJson desde v8 pero acá solo necesitamos id + nombre.
+    const rows = (await databaseService.readAll(
+      "SELECT id, nombre FROM VariableMapa ORDER BY nombre ASC",
+      [],
+    )) as Array<Record<string, unknown>>;
+
+    const catalog: VariableMapaRow[] = rows.map((r) => ({
+      id: String(r.id),
+      nombre: String(r.nombre),
+    }));
+
+    let created = 0;
+
+    for (const vm of catalog) {
+      // ID estable y separado del catálogo:
+      // No uses vm.id como id de Variable porque son entidades distintas.
+      const variableId = this.buildMapaVariableId(proyectoId, vm.id);
+
+      const exists = await databaseService.readAll(
+        "SELECT id FROM Variable WHERE id = ? LIMIT 1",
+        [variableId],
+      );
+      if (exists.length > 0) continue;
+
+      await this.repository.createVariable({
+        id: variableId,
+        grupoVariableId,
+        nombre: vm.nombre,
+        codigo: `VM:${vm.id}`,
+        // tipoDato: mantenelo genérico. Si después tipás "grid"/"raster", lo cambiás acá.
+        tipoDato: "json",
+        configJson: { variableMapaId: vm.id },
+        extrasJson: {},
+      });
+
+      created += 1;
+    }
+
+    return created;
   }
 
   private buildGroupId(proyectoId: string, key: string): string {
     return `grp-${proyectoId}-${key}`;
   }
 
-  private buildVariableId(proyectoId: string, groupKey: string, codigo: string): string {
+  private buildVariableId(
+    proyectoId: string,
+    groupKey: string,
+    codigo: string,
+  ): string {
     return `var-${proyectoId}-${groupKey}-${codigo.toLowerCase()}`;
+  }
+
+  private buildMapaVariableId(
+    proyectoId: string,
+    variableMapaId: string,
+  ): string {
+    return `var-${proyectoId}-mapa-vm-${variableMapaId}`;
   }
 
   private async ensureSchema(): Promise<void> {

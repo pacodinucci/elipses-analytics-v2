@@ -6,31 +6,46 @@ export interface CreateProyectoInput {
   alias: string;
   limitesTemporalDesde: string;
   limitesTemporalHasta: string;
-  arealMinX: number;
-  arealMinY: number;
-  arealMaxX: number;
-  arealMaxY: number;
-  arealCRS: string;
+
+  // ✅ nullable: se define luego de cargar pozos
+  arealMinX: number | null;
+  arealMinY: number | null;
+  arealMaxX: number | null;
+  arealMaxY: number | null;
+  arealCRS: string | null;
+
   grillaNx: number;
   grillaNy: number;
-  grillaCellSizeX: number;
-  grillaCellSizeY: number;
+
+  // ✅ nullable: depende del areal
+  grillaCellSizeX: number | null;
+  grillaCellSizeY: number | null;
+
+  // ✅ fijo: "m"
   grillaUnidad: string;
-  // ✅ v9: NO unidadesId
 }
 
+/**
+ * ✅ Bootstrap mínimo:
+ * - no CRS (queda null)
+ * - no unidad (queda "m")
+ * - un solo input para grilla Nx=Ny=gridDim
+ */
 export interface CreateProyectoBootstrapInput {
   nombre: string;
   limitesTemporalDesde: string;
   limitesTemporalHasta: string;
-  arealMinX: number;
-  arealMinY: number;
-  arealMaxX: number;
-  arealMaxY: number;
-  arealCRS: string;
-  grillaNx: number;
-  grillaNy: number;
-  grillaUnidad: string;
+  gridDim: number; // ✅ Nx=Ny
+}
+
+/**
+ * ✅ Recalcular areal desde pozos + márgenes
+ * (CRS queda null por ahora)
+ */
+export interface RecomputeProyectoArealFromPozosInput {
+  proyectoId: string;
+  margenX: number;
+  margenY: number;
 }
 
 export interface CreateCapaInput {
@@ -68,23 +83,42 @@ function requireFiniteNumber(value: number, fieldName: string): void {
   }
 }
 
+function requireNullableFiniteNumber(
+  value: number | null,
+  fieldName: string,
+): void {
+  if (value == null) return;
+  requireFiniteNumber(value, fieldName);
+}
+
 export function validateCreateProyectoInput(input: CreateProyectoInput): void {
   requireString(input.id, "id");
   requireString(input.nombre, "nombre");
   requireString(input.alias, "alias");
   requireString(input.limitesTemporalDesde, "limitesTemporalDesde");
   requireString(input.limitesTemporalHasta, "limitesTemporalHasta");
-  requireString(input.arealCRS, "arealCRS");
   requireString(input.grillaUnidad, "grillaUnidad");
 
-  requireFiniteNumber(input.arealMinX, "arealMinX");
-  requireFiniteNumber(input.arealMinY, "arealMinY");
-  requireFiniteNumber(input.arealMaxX, "arealMaxX");
-  requireFiniteNumber(input.arealMaxY, "arealMaxY");
   requireFiniteNumber(input.grillaNx, "grillaNx");
   requireFiniteNumber(input.grillaNy, "grillaNy");
-  requireFiniteNumber(input.grillaCellSizeX, "grillaCellSizeX");
-  requireFiniteNumber(input.grillaCellSizeY, "grillaCellSizeY");
+
+  requireNullableFiniteNumber(input.arealMinX, "arealMinX");
+  requireNullableFiniteNumber(input.arealMinY, "arealMinY");
+  requireNullableFiniteNumber(input.arealMaxX, "arealMaxX");
+  requireNullableFiniteNumber(input.arealMaxY, "arealMaxY");
+  requireNullableFiniteNumber(input.grillaCellSizeX, "grillaCellSizeX");
+  requireNullableFiniteNumber(input.grillaCellSizeY, "grillaCellSizeY");
+
+  // Si hay areal, CRS debería existir (aunque hoy lo dejamos null por decisión de negocio)
+  const hasAreal =
+    input.arealMinX != null ||
+    input.arealMinY != null ||
+    input.arealMaxX != null ||
+    input.arealMaxY != null;
+
+  if (hasAreal && input.arealCRS != null && !input.arealCRS.trim()) {
+    throw new Error("arealCRS cannot be empty");
+  }
 }
 
 export function validateCreateProyectoBootstrapInput(
@@ -93,24 +127,25 @@ export function validateCreateProyectoBootstrapInput(
   requireString(input.nombre, "nombre");
   requireString(input.limitesTemporalDesde, "limitesTemporalDesde");
   requireString(input.limitesTemporalHasta, "limitesTemporalHasta");
-  requireString(input.arealCRS, "arealCRS");
-  requireString(input.grillaUnidad, "grillaUnidad");
+  requireFiniteNumber(input.gridDim, "gridDim");
 
-  requireFiniteNumber(input.arealMinX, "arealMinX");
-  requireFiniteNumber(input.arealMinY, "arealMinY");
-  requireFiniteNumber(input.arealMaxX, "arealMaxX");
-  requireFiniteNumber(input.arealMaxY, "arealMaxY");
-  requireFiniteNumber(input.grillaNx, "grillaNx");
-  requireFiniteNumber(input.grillaNy, "grillaNy");
+  if (input.gridDim <= 0) {
+    throw new Error("gridDim must be greater than zero");
+  }
+  if (!Number.isInteger(input.gridDim)) {
+    throw new Error("gridDim must be an integer");
+  }
+}
 
-  if (input.arealMaxX <= input.arealMinX) {
-    throw new Error("arealMaxX must be greater than arealMinX");
-  }
-  if (input.arealMaxY <= input.arealMinY) {
-    throw new Error("arealMaxY must be greater than arealMinY");
-  }
-  if (input.grillaNx <= 0 || input.grillaNy <= 0) {
-    throw new Error("grid dimensions must be greater than zero");
+export function validateRecomputeProyectoArealFromPozosInput(
+  input: RecomputeProyectoArealFromPozosInput,
+): void {
+  requireString(input.proyectoId, "proyectoId");
+  requireFiniteNumber(input.margenX, "margenX");
+  requireFiniteNumber(input.margenY, "margenY");
+
+  if (input.margenX < 0 || input.margenY < 0) {
+    throw new Error("margenes must be >= 0");
   }
 }
 

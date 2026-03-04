@@ -26,6 +26,8 @@ export function ProjectsTable({
         {proyectos.map((p) => {
           const isActive = selectedProyectoId === p.id;
 
+          console.log("proyecto -> ", p);
+
           // v2: store ya normaliza nombre -> p.nombre
           const nombre = (p as any).nombre ?? (p as any).name ?? "";
 

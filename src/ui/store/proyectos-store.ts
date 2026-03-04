@@ -21,9 +21,7 @@ type ProyectosState = {
 };
 
 function normalizeProyecto(p: any): Proyecto {
-  // v2 puede traer { name } y tu UI espera { nombre }
   const nombre = String(p?.nombre ?? p?.name ?? "").trim();
-
   return {
     ...p,
     id: String(p?.id),
@@ -44,10 +42,8 @@ export const useProyectosStore = create<ProyectosState>((set, get) => ({
   fetchProyectos: async () => {
     set((s) => ({ ...s, loading: true, error: null }));
     try {
-      // ✅ v2
       const res = await window.electron.coreProyectoList();
       const proyectos = Array.isArray(res) ? res.map(normalizeProyecto) : [];
-
       set({ proyectos, loading: false, error: null });
     } catch (e: unknown) {
       const msg =
@@ -62,17 +58,17 @@ export const useProyectosStore = create<ProyectosState>((set, get) => ({
   createProyecto: async (input) => {
     set((s) => ({ ...s, loading: true, error: null }));
     try {
-      // ✅ v2 recomendado: bootstrap (proyecto + unidades)
-      // Si tu backendInit requiere algo más, lo ajustamos después con el type real.
-      const payload: CreateProyectoBootstrapInput = {
-        proyecto: {
-          name: input.nombre,
-          descripcion: input.descripcion ?? "",
-        },
-      } as any;
+      // ✅ NO inventamos payload.
+      // Usamos el bootstrap real: nombre + fechas + gridDim.
+      // (Si tu backend usa otros nombres, se ajusta en 1 lugar: acá)
+      const { proyecto } = await window.electron.coreProyectoInitialize({
+        nombre: input.nombre,
+        limitesTemporalDesde: input.fecha_inicio,
+        limitesTemporalHasta: input.fecha_fin,
+        gridDim: 200, // default razonable si tu UI no lo pide acá
+      } as any);
 
-      const result = await window.electron.coreProyectoInitialize(payload);
-      const created = normalizeProyecto(result?.proyecto);
+      const created = normalizeProyecto(proyecto);
 
       set((s) => ({
         proyectos: [created, ...s.proyectos],

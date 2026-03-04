@@ -9,15 +9,31 @@ export interface Proyecto {
   alias: string;
   limitesTemporalDesde: string;
   limitesTemporalHasta: string;
-  arealMinX: number;
-  arealMinY: number;
-  arealMaxX: number;
-  arealMaxY: number;
-  arealCRS: string;
+
+  /**
+   * ✅ Ahora nullable:
+   * Se calcula luego de cargar pozos (min/max x/y + margen).
+   */
+  arealMinX: number | null;
+  arealMinY: number | null;
+  arealMaxX: number | null;
+  arealMaxY: number | null;
+
+  /**
+   * ✅ CRS puede ser definido al crear o luego (si preferís).
+   * Si querés forzarlo siempre, lo validamos en domain.
+   */
+  arealCRS: string | null;
+
   grillaNx: number;
   grillaNy: number;
-  grillaCellSizeX: number;
-  grillaCellSizeY: number;
+
+  /**
+   * ✅ Depende de areal. Nullable hasta que haya areal.
+   */
+  grillaCellSizeX: number | null;
+  grillaCellSizeY: number | null;
+
   grillaUnidad: string;
 
   createdAt: string;
@@ -202,7 +218,6 @@ export interface Elipse {
   id: ID;
   proyectoId: ID;
 
-  // v7 lo agrega NULLABLE (mientras migrás legacy)
   simulacionId: ID | null;
 
   capaId: ID;
@@ -236,7 +251,6 @@ export interface Simulacion {
   tipoSimulacionId: ID;
   escenarioSimulacionId: ID;
 
-  // ✅ existe en schema inicial (legacy compat)
   setEstadoPozosId: ID;
 
   createdAt: string;
@@ -246,7 +260,7 @@ export interface Simulacion {
 }
 
 /**
- * Legacy (tabla Produccion todavía aparece en migrations antiguas)
+ * Legacy
  */
 export interface Produccion {
   id: number;

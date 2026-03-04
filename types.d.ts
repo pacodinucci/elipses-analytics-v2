@@ -89,7 +89,6 @@ declare global {
   type Elipse = import("./src/electron/backend/models.js").Elipse;
   type VariableMapa = import("./src/electron/backend/models.js").VariableMapa;
 
-
   // ============================================================
   // ✅ Imports domain (v2)
   // ============================================================
@@ -110,6 +109,10 @@ declare global {
 
   type ImportJobResult =
     import("./src/electron/modules/imports/domain/importJob.js").ImportJobResult;
+
+  // ✅ FIX: payload para pozos (TXT)
+  type PozoTxtImportPayload =
+    import("./src/electron/modules/imports/domain/importJob.js").PozoTxtImportPayload;
 
   // ============================================================
   // ✅ Otros inputs (v2)
@@ -132,10 +135,13 @@ declare global {
 
   type CreateProyectoInput =
     import("./src/electron/modules/core-data/domain/coreData.js").CreateProyectoInput;
+
   type CreateProyectoBootstrapInput =
     import("./src/electron/modules/core-data/domain/coreData.js").CreateProyectoBootstrapInput;
 
-  // ❌ CreateUnidadesInput removido (ya no existe en core-data)
+  type RecomputeProyectoArealFromPozosInput =
+    import("./src/electron/modules/core-data/domain/coreData.js").RecomputeProyectoArealFromPozosInput;
+
   type CreateCapaInput =
     import("./src/electron/modules/core-data/domain/coreData.js").CreateCapaInput;
   type CreatePozoInput =
@@ -256,7 +262,7 @@ declare global {
     | { ok: false; error: string };
 
   // ============================================================
-  // ✅ Runtime stats + legacy response (se usan en EventPayloadMapping)
+  // ✅ Runtime stats
   // ============================================================
   type Statistics = {
     cpuUsage: number;
@@ -304,6 +310,9 @@ declare global {
     importCapasDryRun: ImportJobResult;
     importCapasCommit: ImportJobResult;
 
+    importPozosDryRun: ImportJobResult;
+    importPozosCommit: ImportJobResult;
+
     productionCreate: Produccion;
     productionListByProject: Produccion[];
 
@@ -312,8 +321,10 @@ declare global {
 
     wellStateTypeCreate: TipoEstadoPozo;
     wellStateTypeList: TipoEstadoPozo[];
+
     wellStateSetCreate: SetEstadoPozos;
     wellStateSetListByProject: SetEstadoPozos[];
+
     wellStateSetDetailCreate: SetEstadoPozosDetalle;
     wellStateSetDetailList: SetEstadoPozosDetalle[];
 
@@ -323,7 +334,6 @@ declare global {
     variableCreate: Variable;
     variableListByGrupoVariable: Variable[];
 
-    // ✅ unidades (v9)
     unidadesListByProyecto: Unidades[];
     unidadesUpsert: { id: string };
 
@@ -357,6 +367,8 @@ declare global {
 
     corePozoCapaCreate: PozoCapa;
     corePozoCapaListByProject: PozoCapa[];
+
+    coreProyectoRecomputeArealFromPozos: { proyecto: Proyecto };
   };
 
   // ============================================================
@@ -406,6 +418,14 @@ declare global {
       ) => Promise<ImportJobResult>;
       importCapasCommit: (
         payload: CapaTxtImportPayload,
+      ) => Promise<ImportJobResult>;
+
+      // ✅ FIX: Pozos (TXT)
+      importPozosDryRun: (
+        payload: PozoTxtImportPayload,
+      ) => Promise<ImportJobResult>;
+      importPozosCommit: (
+        payload: PozoTxtImportPayload,
       ) => Promise<ImportJobResult>;
 
       productionCreate: (payload: CreateProduccionInput) => Promise<Produccion>;
@@ -495,6 +515,11 @@ declare global {
       coreProyectoInitialize: (
         payload: CreateProyectoBootstrapInput,
       ) => Promise<{ proyecto: Proyecto }>;
+
+      coreProyectoRecomputeArealFromPozos: (
+        payload: RecomputeProyectoArealFromPozosInput,
+      ) => Promise<{ proyecto: Proyecto }>;
+
       coreProyectoCreate: (payload: CreateProyectoInput) => Promise<Proyecto>;
       coreProyectoList: () => Promise<Proyecto[]>;
 

@@ -16,6 +16,7 @@ import type {
   CreatePozoInput,
   CreateProyectoBootstrapInput,
   CreateProyectoInput,
+  RecomputeProyectoArealFromPozosInput,
 } from "../domain/coreData.js";
 
 import {
@@ -24,11 +25,10 @@ import {
   validateCreatePozoInput,
   validateCreateProyectoBootstrapInput,
   validateCreateProyectoInput,
+  validateRecomputeProyectoArealFromPozosInput,
 } from "../domain/coreData.js";
 
 import { CoreDataRepository } from "../infrastructure/coreDataRepository.js";
-
-// ✅ seed catálogo + unidades por proyecto
 import { variablesService } from "../../variables/application/variablesService.js";
 
 export class CoreDataService {
@@ -36,10 +36,11 @@ export class CoreDataService {
   private schemaReady = false;
 
   /**
-   * ✅ Inicializa un proyecto (bootstrap):
-   * - crea Proyecto
-   * - asegura catálogo mínimo (global)
-   * - asegura Unidades default para este proyecto (settings por variable)
+   * ✅ Bootstrap mínimo
+   * - CRS = null
+   * - grillaUnidad = "m"
+   * - Nx = Ny = gridDim
+   * - areal/cellSize null hasta cargar pozos
    */
   async initializeProyecto(
     input: CreateProyectoBootstrapInput,
@@ -50,27 +51,26 @@ export class CoreDataService {
     const proyectoId = randomUUID();
     const alias = input.nombre.trim().slice(0, 12).toUpperCase();
 
-    const grillaCellSizeX =
-      (input.arealMaxX - input.arealMinX) / input.grillaNx;
-    const grillaCellSizeY =
-      (input.arealMaxY - input.arealMinY) / input.grillaNy;
-
     const proyecto = await this.repository.createProyecto({
       id: proyectoId,
       nombre: input.nombre,
       alias,
       limitesTemporalDesde: input.limitesTemporalDesde,
       limitesTemporalHasta: input.limitesTemporalHasta,
-      arealMinX: input.arealMinX,
-      arealMinY: input.arealMinY,
-      arealMaxX: input.arealMaxX,
-      arealMaxY: input.arealMaxY,
-      arealCRS: input.arealCRS,
-      grillaNx: input.grillaNx,
-      grillaNy: input.grillaNy,
-      grillaCellSizeX,
-      grillaCellSizeY,
-      grillaUnidad: input.grillaUnidad,
+
+      arealMinX: null,
+      arealMinY: null,
+      arealMaxX: null,
+      arealMaxY: null,
+      arealCRS: null, // ✅ por ahora null
+
+      grillaNx: input.gridDim,
+      grillaNy: input.gridDim,
+
+      grillaCellSizeX: null,
+      grillaCellSizeY: null,
+
+      grillaUnidad: "m", // ✅ fijo
     });
 
     await variablesService.ensureDefaultsForProject(proyectoId);
@@ -78,13 +78,25 @@ export class CoreDataService {
     return { proyecto };
   }
 
+  /**
+   * ✅ Recalcular areal a partir de pozos + márgenes
+   */
+  async recomputeProyectoArealFromPozos(
+    input: RecomputeProyectoArealFromPozosInput,
+  ): Promise<{ proyecto: Proyecto }> {
+    validateRecomputeProyectoArealFromPozosInput(input);
+    await this.ensureSchema();
+
+    const updated =
+      await this.repository.recomputeProyectoArealFromPozos(input);
+    return { proyecto: updated };
+  }
+
   async createProyecto(input: CreateProyectoInput): Promise<Proyecto> {
     validateCreateProyectoInput(input);
     await this.ensureSchema();
 
     const proyecto = await this.repository.createProyecto(input);
-
-    // ✅ asegura defaults también en create “directo”
     await variablesService.ensureDefaultsForProject(proyecto.id);
 
     return proyecto;

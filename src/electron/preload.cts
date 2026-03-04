@@ -1,11 +1,21 @@
 // src/electron/preload.cts
 import electron from "electron";
 
-// ✅ Types locales (sin depender de globals de types.d.ts)
-import {
+import type {
   BackendBootstrapStatus,
   BackendTruthRegistry,
+  Proyecto,
 } from "./backend/models.js";
+
+import type {
+  CreateProyectoBootstrapInput,
+  RecomputeProyectoArealFromPozosInput,
+} from "./modules/core-data/domain/coreData.js";
+
+import type {
+  ImportJobResult,
+  PozoTxtImportPayload,
+} from "./modules/imports/domain/importJob.js";
 
 // runtime-only
 type Statistics = { cpuUsage: number; ramUsage: number; storageUsage: number };
@@ -138,70 +148,65 @@ electron.contextBridge.exposeInMainWorld("electron", {
   wellStateSetDetailList: (payload: unknown) =>
     electron.ipcRenderer.invoke("wellStateSetDetailList", payload),
 
-  // -------------------------
-  // Variables (catálogo)
-  // -------------------------
+  // Variables
   grupoVariableCreate: (payload: unknown) =>
     electron.ipcRenderer.invoke("grupoVariableCreate", payload),
   grupoVariableList: (payload?: unknown) =>
     electron.ipcRenderer.invoke("grupoVariableList", payload),
-
   variableCreate: (payload: unknown) =>
     electron.ipcRenderer.invoke("variableCreate", payload),
-
-  // ✅ nuevo (v9)
   variableListByGrupoVariable: (payload: unknown) =>
     electron.ipcRenderer.invoke("variableListByGrupoVariable", payload),
-
-  // ✅ Unidades (settings por proyecto+variable)
   unidadesListByProyecto: (payload: unknown) =>
     electron.ipcRenderer.invoke("unidadesListByProyecto", payload),
   unidadesUpsert: (payload: unknown) =>
     electron.ipcRenderer.invoke("unidadesUpsert", payload),
 
-  // =========================
-  // ✅ Ellipse (variables / geometría / valores / normalización)
-  // =========================
+  // Ellipse
   ellipseVariableCreate: (payload: unknown) =>
     electron.ipcRenderer.invoke("ellipseVariableCreate", payload),
   ellipseVariableList: () => electron.ipcRenderer.invoke("ellipseVariableList"),
-
   ellipseCreate: (payload: unknown) =>
     electron.ipcRenderer.invoke("ellipseCreate", payload),
   ellipseListByLayer: (payload: unknown) =>
     electron.ipcRenderer.invoke("ellipseListByLayer", payload),
   ellipseListByProject: (payload: unknown) =>
     electron.ipcRenderer.invoke("ellipseListByProject", payload),
-
   ellipseValueCreate: (payload: unknown) =>
     electron.ipcRenderer.invoke("ellipseValueCreate", payload),
   ellipseValueListBySimulacion: (payload: unknown) =>
     electron.ipcRenderer.invoke("ellipseValueListBySimulacion", payload),
-
   elipsesNormalizationAll: (payload: unknown) =>
     electron.ipcRenderer.invoke("elipsesNormalizationAll", payload),
 
-  // =========================
-  // ✅ Dynamic Fields (defs + extrasJson)
-  // =========================
+  // Dynamic Fields
   dynamicFieldsListDefs: (payload: DynamicFieldsListDefsPayload) =>
     electron.ipcRenderer.invoke("dynamicFieldsListDefs", payload),
-
   dynamicFieldsCreateDef: (payload: DynamicFieldsCreateDefPayload) =>
     electron.ipcRenderer.invoke("dynamicFieldsCreateDef", payload),
-
   dynamicFieldsUpdateEntityExtras: (
     payload: DynamicFieldsUpdateEntityExtrasPayload,
   ) => electron.ipcRenderer.invoke("dynamicFieldsUpdateEntityExtras", payload),
 
-  // =========================
   // Core Data
-  // =========================
-  coreProyectoInitialize: (payload: unknown) =>
-    electron.ipcRenderer.invoke("coreProyectoInitialize", payload),
+  coreProyectoInitialize: (payload: CreateProyectoBootstrapInput) =>
+    electron.ipcRenderer.invoke("coreProyectoInitialize", payload) as Promise<{
+      proyecto: Proyecto;
+    }>,
+
+  coreProyectoRecomputeArealFromPozos: (
+    payload: RecomputeProyectoArealFromPozosInput,
+  ) =>
+    electron.ipcRenderer.invoke(
+      "coreProyectoRecomputeArealFromPozos",
+      payload,
+    ) as Promise<{ proyecto: Proyecto }>,
+
   coreProyectoCreate: (payload: unknown) =>
     electron.ipcRenderer.invoke("coreProyectoCreate", payload),
-  coreProyectoList: () => electron.ipcRenderer.invoke("coreProyectoList"),
+
+  coreProyectoList: () =>
+    electron.ipcRenderer.invoke("coreProyectoList") as Promise<Proyecto[]>,
 
   coreCapaCreate: (payload: unknown) =>
     electron.ipcRenderer.invoke("coreCapaCreate", payload),
@@ -217,6 +222,19 @@ electron.contextBridge.exposeInMainWorld("electron", {
     electron.ipcRenderer.invoke("corePozoCapaCreate", payload),
   corePozoCapaListByProject: (payload: unknown) =>
     electron.ipcRenderer.invoke("corePozoCapaListByProject", payload),
+
+  // ✅ Imports: Pozos (TIPADO) — ahora es TXT
+  importPozosDryRun: (payload: PozoTxtImportPayload) =>
+    electron.ipcRenderer.invoke(
+      "importPozosDryRun",
+      payload,
+    ) as Promise<ImportJobResult>,
+
+  importPozosCommit: (payload: PozoTxtImportPayload) =>
+    electron.ipcRenderer.invoke(
+      "importPozosCommit",
+      payload,
+    ) as Promise<ImportJobResult>,
 } satisfies Window["electron"]);
 
 // helpers

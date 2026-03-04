@@ -4,7 +4,10 @@ import { dirname, resolve } from "node:path";
 import type { Migration } from "./migrations.js";
 
 interface DuckDBReader {
-  getRowsJson(): Array<Record<string, unknown>>;
+  getRowObjects(): Array<Record<string, unknown>>;
+
+  // (opcional, por si en otros lugares usás tuplas)
+  // getRows(): unknown[][];
 }
 
 interface DuckDBConnection {
@@ -118,7 +121,9 @@ export class DatabaseService {
   ): Promise<Array<Record<string, unknown>>> {
     const connection = await this.getConnection();
     const reader = await connection.runAndReadAll(sql, params);
-    return reader.getRowsJson();
+
+    // ✅ esto es lo que querés: objetos con keys = nombres de columnas
+    return reader.getRowObjects();
   }
 
   async getAppliedMigrationVersions(): Promise<number[]> {

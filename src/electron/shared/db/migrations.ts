@@ -11,6 +11,10 @@ export interface Migration {
  * - GrupoVariable: incluye proyectoId + scope desde el inicio
  * - Variable: SIN unidadesId y SIN unidad
  * - Unidades: entidad por proyecto (sin variableId)
+ *
+ * IMPORTANTE:
+ * - Proyecto.areal* + arealCRS + grillaCellSize* nacen NULLABLE en el baseline.
+ * - Esto evita migraciones destructivas sobre Proyecto (DuckDB no deja ALTER/DROP con deps).
  */
 const initialSchemaStatements = [
   `CREATE TABLE IF NOT EXISTS Proyecto (
@@ -19,16 +23,19 @@ const initialSchemaStatements = [
     alias VARCHAR NOT NULL,
     limitesTemporalDesde DATE NOT NULL,
     limitesTemporalHasta DATE NOT NULL,
-    arealMinX DOUBLE NOT NULL,
-    arealMinY DOUBLE NOT NULL,
-    arealMaxX DOUBLE NOT NULL,
-    arealMaxY DOUBLE NOT NULL,
-    arealCRS VARCHAR NOT NULL,
+
+    arealMinX DOUBLE,
+    arealMinY DOUBLE,
+    arealMaxX DOUBLE,
+    arealMaxY DOUBLE,
+    arealCRS VARCHAR,
+
     grillaNx INTEGER NOT NULL,
     grillaNy INTEGER NOT NULL,
-    grillaCellSizeX DOUBLE NOT NULL,
-    grillaCellSizeY DOUBLE NOT NULL,
+    grillaCellSizeX DOUBLE,
+    grillaCellSizeY DOUBLE,
     grillaUnidad VARCHAR NOT NULL,
+
     createdAt TIMESTAMP NOT NULL,
     updatedAt TIMESTAMP NOT NULL
   )`,
@@ -406,8 +413,6 @@ const dynamicFieldsV8Statements = [
 
 /**
  * ✅ v9 ahora es NO-OP
- * Porque el baseline ya nace con el modelo nuevo.
- * (No hacemos refactors destructivos.)
  */
 const unidadesRefactorV9Statements: string[] = [];
 
@@ -528,6 +533,14 @@ const restoreVariableMapaV12Statements = [
   `ALTER TABLE Mapa__v12 RENAME TO Mapa`,
 ];
 
+/**
+ * ✅ v13: NO-OP
+ * DuckDB no permite ALTER/DROP de columnas NOT NULL en tablas con dependencias/FKs.
+ * El baseline (v1) ya nace con Proyecto.areal* y grillaCellSize* NULLABLE,
+ * así que no necesitamos tocar nada acá.
+ */
+const proyectoArealNullableV13Statements: string[] = [];
+
 export const migrations: Migration[] = [
   {
     version: 1,
@@ -588,5 +601,10 @@ export const migrations: Migration[] = [
     version: 12,
     name: "restore_variable_mapa_v12",
     statements: restoreVariableMapaV12Statements,
+  },
+  {
+    version: 13,
+    name: "project_areal_nullable_v13_noop",
+    statements: proyectoArealNullableV13Statements,
   },
 ];

@@ -9,6 +9,7 @@ import type {
   CreatePozoInput,
   CreateProyectoBootstrapInput,
   CreateProyectoInput,
+  RecomputeProyectoArealFromPozosInput,
 } from "../domain/coreData.js";
 
 export function registerCoreDataIpcHandlers() {
@@ -19,6 +20,16 @@ export function registerCoreDataIpcHandlers() {
       if (!frame) throw new Error("Missing senderFrame");
       validateEventFrame(frame);
       return coreDataService.initializeProyecto(payload);
+    },
+  );
+
+  ipcMain.handle(
+    "coreProyectoRecomputeArealFromPozos",
+    async (event, payload: RecomputeProyectoArealFromPozosInput) => {
+      const frame = event.senderFrame;
+      if (!frame) throw new Error("Missing senderFrame");
+      validateEventFrame(frame);
+      return coreDataService.recomputeProyectoArealFromPozos(payload);
     },
   );
 
