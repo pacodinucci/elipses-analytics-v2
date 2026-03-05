@@ -1,7 +1,21 @@
 // src/components/project/new-project-modal.tsx
-import { useEffect, useMemo } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./new-project-modal.css";
 import { useNewProjectWizardStore } from "../../store/new-project-wizard-store";
+import type { CSSProperties } from "react";
+
+/**
+ * ✅ IMPORTANTE
+ * Estás con react-window@2.2.7, y esa versión NO expone FixedSizeList (API cambió).
+ * Para destrabar YA (sin pelear con versiones), saco react-window y meto un virtual list
+ * simple (fixed row height) sin dependencias.
+ */
+
+type VirtualRowProps<T> = {
+  index: number;
+  style: CSSProperties;
+  data: T;
+};
 
 type NewProjectModalProps = {
   isOpen: boolean;
@@ -41,6 +55,14 @@ function firstImportErrorMessage(dryOrCommit: any): string {
   return typeof msg === "string" && msg.trim() ? msg : "ver detalle";
 }
 
+const CAPA_FIELDS = [{ key: "nombre", label: "Nombre" }] as const;
+
+const POZO_FIELDS = [
+  { key: "nombre", label: "Nombre" },
+  { key: "x", label: "X" },
+  { key: "y", label: "Y" },
+] as const;
+
 export function NewProjectModal({
   isOpen,
   onClose,
@@ -62,9 +84,26 @@ export function NewProjectModal({
     setLoading,
     setError,
     reset,
+
+    capasImport,
+    pozosImport,
+
+    setImportFromContent,
+    setImportMapping,
+    setImportCell,
+
+    setImportRowSelected,
+    setImportColSelected,
+    setImportAllRowsSelected,
+    setImportAllColsSelected,
+
+    validateImport,
+    buildContentForCommit,
+    clearImport,
+
+    normalizeCapasNames,
   } = useNewProjectWizardStore();
 
-  // ✅ Defaults al abrir si el wizard está "vacío"
   useEffect(() => {
     if (!isOpen) return;
 
@@ -76,13 +115,42 @@ export function NewProjectModal({
       !proyecto;
 
     if (isEmpty) {
-      // reset() ya crea defaults, pero si querés asegurar mismos defaults que el modal:
       reset();
-      // y si querés forzar defaults exactos:
       setDraft(makeDefaults());
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
+
+  // debounce validation (no bloquea UI)
+  useEffect(() => {
+    if (step !== "capas") return;
+    if (!capasFile) return;
+    const t = window.setTimeout(() => validateImport("Capa"), 140);
+    return () => window.clearTimeout(t);
+  }, [
+    step,
+    capasFile,
+    capasImport.selectedRows,
+    capasImport.selectedCols,
+    capasImport.mapping,
+    capasImport.rows,
+    validateImport,
+  ]);
+
+  useEffect(() => {
+    if (step !== "pozos") return;
+    if (!pozosFile) return;
+    const t = window.setTimeout(() => validateImport("Pozo"), 140);
+    return () => window.clearTimeout(t);
+  }, [
+    step,
+    pozosFile,
+    pozosImport.selectedRows,
+    pozosImport.selectedCols,
+    pozosImport.mapping,
+    pozosImport.rows,
+    validateImport,
+  ]);
 
   const canCreateProyecto = useMemo(() => {
     return draft.nombre.trim().length > 0 && !loading;
@@ -138,7 +206,7 @@ export function NewProjectModal({
   };
 
   // -----------------------
-  // Step 2: Import Capas
+  // Step 2: Capas
   // -----------------------
   const handleImportCapasAndNext = async () => {
     setError("");
@@ -152,14 +220,23 @@ export function NewProjectModal({
     try {
       setLoading(true);
 
-      // capas opcional
+      // Si no se adjunta archivo, se permite avanzar.
       if (!capasFile) {
+        clearImport("Capa");
         setStep("pozos");
         return;
       }
 
-      const content = await capasFile.text();
-      const payload = { proyectoId: proyecto.id, content };
+      const okLocal = validateImport("Capa");
+      if (!okLocal) {
+        setError(
+          "Hay errores de mapping o filas inválidas. Corregí antes de continuar.",
+        );
+        return;
+      }
+
+      const contentFinal = buildContentForCommit("Capa");
+      const payload = { proyectoId: proyecto.id, content: contentFinal };
 
       const dry = await window.electron.importCapasDryRun(payload as any);
       if (dry.status === "failed") {
@@ -173,6 +250,7 @@ export function NewProjectModal({
         );
       }
 
+      clearImport("Capa");
       setStep("pozos");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Error importando capas");
@@ -182,7 +260,7 @@ export function NewProjectModal({
   };
 
   // -----------------------
-  // Step 3: Import Pozos + recompute areal
+  // Step 3: Pozos (FIN)
   // -----------------------
   const handleImportPozosAndFinish = async () => {
     setError("");
@@ -196,10 +274,18 @@ export function NewProjectModal({
     try {
       setLoading(true);
 
-      // pozos opcional
+      // Si no se adjunta archivo, se permite finalizar igual.
       if (pozosFile) {
-        const content = await pozosFile.text();
-        const payload = { proyectoId: proyecto.id, content };
+        const okLocal = validateImport("Pozo");
+        if (!okLocal) {
+          setError(
+            "Hay errores de mapping o filas inválidas. Corregí antes de finalizar.",
+          );
+          return;
+        }
+
+        const contentFinal = buildContentForCommit("Pozo");
+        const payload = { proyectoId: proyecto.id, content: contentFinal };
 
         const dry = await window.electron.importPozosDryRun(payload as any);
         if (dry.status === "failed") {
@@ -215,23 +301,22 @@ export function NewProjectModal({
           );
         }
 
-        // recompute areal (si falla, no bloquea)
-        try {
-          const { proyecto: updated } =
-            await window.electron.coreProyectoRecomputeArealFromPozos({
-              proyectoId: proyecto.id,
-              margenX: 100,
-              margenY: 100,
-            } as any);
+        clearImport("Pozo");
 
-          onCreated?.(updated ?? proyecto);
-          close();
-          return;
+        try {
+          await window.electron.coreProyectoRecomputeArealFromPozos({
+            proyectoId: proyecto.id,
+            margenX: 100,
+            margenY: 100,
+          } as any);
         } catch {
           // noop
         }
+      } else {
+        clearImport("Pozo");
       }
 
+      // ✅ FIN del wizard
       onCreated?.(proyecto);
       close();
     } catch (err) {
@@ -243,13 +328,18 @@ export function NewProjectModal({
 
   if (!isOpen) return null;
 
+  const capasMappingErrors = capasImport.mappingErrors?.length ?? 0;
+  const capasRowErrors = Object.keys(capasImport.rowErrors ?? {}).length;
+
+  const pozosMappingErrors = pozosImport.mappingErrors?.length ?? 0;
+  const pozosRowErrors = Object.keys(pozosImport.rowErrors ?? {}).length;
+
   return (
     <div className="npm-overlay">
       <div className="npm-modal">
         <div className="npm-header">
           <div className="npm-header-left">
             <h2 className="npm-title">Crear proyecto</h2>
-
             {proyecto?.nombre ? (
               <span className="npm-subtitle">{proyecto.nombre}</span>
             ) : null}
@@ -270,7 +360,10 @@ export function NewProjectModal({
           <StepChip active={step === "proyecto"} done={!!proyecto?.id}>
             1) Proyecto
           </StepChip>
-          <StepChip active={step === "capas"} done={step === "pozos"}>
+          <StepChip
+            active={step === "capas"}
+            done={step !== "proyecto" && step !== "capas"}
+          >
             2) Capas
           </StepChip>
           <StepChip active={step === "pozos"} done={false}>
@@ -341,17 +434,77 @@ export function NewProjectModal({
           {step === "capas" && (
             <div className="npm-form">
               <p className="npm-hint">
-                Cargá el TXT de capas (opcional). Formato: primera línea puede
-                ser <code>capa</code> y luego una capa por línea.
+                Cargá un TXT tabular. Podés desestimar columnas / filas.
               </p>
 
               <FileField
                 label="Archivo de capas (TXT)"
                 accept=".txt"
                 file={capasFile}
-                onChange={setCapasFile}
+                onChange={async (f) => {
+                  setCapasFile(f);
+
+                  if (!f) {
+                    clearImport("Capa");
+                    return;
+                  }
+
+                  try {
+                    const text = await f.text();
+                    setImportFromContent("Capa", text);
+                  } catch (e) {
+                    setError(
+                      e instanceof Error
+                        ? e.message
+                        : "No se pudo leer el archivo",
+                    );
+                  }
+                }}
                 disabled={loading}
               />
+
+              {capasFile ? (
+                <ImportMappingTable
+                  titleLeft={`Filas: ${capasImport.rows.length}`}
+                  titleRight={`Mapping errs: ${capasMappingErrors} | Row errs: ${capasRowErrors}`}
+                  columns={capasImport.columns}
+                  columnUnits={capasImport.columnUnits}
+                  selectedCols={capasImport.selectedCols}
+                  selectedRows={capasImport.selectedRows}
+                  rows={capasImport.rows}
+                  mapping={capasImport.mapping}
+                  rowErrors={capasImport.rowErrors}
+                  mappingErrors={capasImport.mappingErrors}
+                  fieldOptions={CAPA_FIELDS as any}
+                  onChangeMapping={(col, m) =>
+                    setImportMapping("Capa", col, m as any)
+                  }
+                  onChangeColSelected={(col, sel) =>
+                    setImportColSelected("Capa", col, sel)
+                  }
+                  onChangeAllCols={(sel) =>
+                    setImportAllColsSelected("Capa", sel)
+                  }
+                  onChangeRowSelected={(row, sel) =>
+                    setImportRowSelected("Capa", row, sel)
+                  }
+                  onChangeAllRows={(sel) =>
+                    setImportAllRowsSelected("Capa", sel)
+                  }
+                  onChangeCell={(r, c, v) => setImportCell("Capa", r, c, v)}
+                  extraRight={
+                    <button
+                      type="button"
+                      className="btn btn--secondary"
+                      onClick={() => normalizeCapasNames()}
+                      disabled={loading || capasImport.rows.length === 0}
+                    >
+                      Normalizar
+                    </button>
+                  }
+                  disabled={loading}
+                />
+              ) : null}
 
               <div className="npm-actions">
                 <button
@@ -367,7 +520,13 @@ export function NewProjectModal({
                   type="button"
                   onClick={handleImportCapasAndNext}
                   className="btn btn--primary"
-                  disabled={loading || !proyecto?.id}
+                  disabled={
+                    loading ||
+                    !proyecto?.id ||
+                    (capasFile
+                      ? capasMappingErrors > 0 || capasRowErrors > 0
+                      : false)
+                  }
                 >
                   {loading ? "Importando..." : "Continuar"}
                 </button>
@@ -378,18 +537,68 @@ export function NewProjectModal({
           {step === "pozos" && (
             <div className="npm-form">
               <p className="npm-hint">
-                Cargá el TXT de pozos (opcional). Formato: header{" "}
-                <code>pozo x y</code>, filas separadas por tabs/espacios. X
-                puede venir con coma decimal.
+                Cargá un TXT tabular (tabs/espacios). Podés desestimar columnas
+                / filas.
               </p>
 
               <FileField
-                label="Archivo de pozos (TXT: pozo x y)"
+                label="Archivo de pozos (TXT)"
                 accept=".txt"
                 file={pozosFile}
-                onChange={setPozosFile}
+                onChange={async (f) => {
+                  setPozosFile(f);
+
+                  if (!f) {
+                    clearImport("Pozo");
+                    return;
+                  }
+
+                  try {
+                    const text = await f.text();
+                    setImportFromContent("Pozo", text);
+                  } catch (e) {
+                    setError(
+                      e instanceof Error
+                        ? e.message
+                        : "No se pudo leer el archivo",
+                    );
+                  }
+                }}
                 disabled={loading}
               />
+
+              {pozosFile ? (
+                <ImportMappingTable
+                  titleLeft={`Filas: ${pozosImport.rows.length}`}
+                  titleRight={`Mapping errs: ${pozosMappingErrors} | Row errs: ${pozosRowErrors}`}
+                  columns={pozosImport.columns}
+                  columnUnits={pozosImport.columnUnits}
+                  selectedCols={pozosImport.selectedCols}
+                  selectedRows={pozosImport.selectedRows}
+                  rows={pozosImport.rows}
+                  mapping={pozosImport.mapping}
+                  rowErrors={pozosImport.rowErrors}
+                  mappingErrors={pozosImport.mappingErrors}
+                  fieldOptions={POZO_FIELDS as any}
+                  onChangeMapping={(col, m) =>
+                    setImportMapping("Pozo", col, m as any)
+                  }
+                  onChangeColSelected={(col, sel) =>
+                    setImportColSelected("Pozo", col, sel)
+                  }
+                  onChangeAllCols={(sel) =>
+                    setImportAllColsSelected("Pozo", sel)
+                  }
+                  onChangeRowSelected={(row, sel) =>
+                    setImportRowSelected("Pozo", row, sel)
+                  }
+                  onChangeAllRows={(sel) =>
+                    setImportAllRowsSelected("Pozo", sel)
+                  }
+                  onChangeCell={(r, c, v) => setImportCell("Pozo", r, c, v)}
+                  disabled={loading}
+                />
+              ) : null}
 
               <div className="npm-actions">
                 <button
@@ -405,7 +614,13 @@ export function NewProjectModal({
                   type="button"
                   onClick={handleImportPozosAndFinish}
                   className="btn btn--primary"
-                  disabled={loading || !proyecto?.id}
+                  disabled={
+                    loading ||
+                    !proyecto?.id ||
+                    (pozosFile
+                      ? pozosMappingErrors > 0 || pozosRowErrors > 0
+                      : false)
+                  }
                 >
                   {loading ? "Finalizando..." : "Finalizar"}
                 </button>
@@ -414,6 +629,386 @@ export function NewProjectModal({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** ===== Virtualized Mapping Table (sin react-window) ===== */
+
+function ImportMappingTable(props: {
+  titleLeft: string;
+  titleRight: string;
+  columns: string[];
+  columnUnits?: string[];
+
+  selectedCols: boolean[];
+  selectedRows: boolean[];
+
+  rows: { rowNumber: number; cells: string[] }[];
+  mapping: Array<string>;
+  rowErrors: Record<number, string[]>;
+  mappingErrors: string[];
+  fieldOptions: Array<{ key: string; label: string }>;
+  onChangeMapping: (colIndex: number, mapping: string) => void;
+
+  onChangeColSelected: (colIndex: number, selected: boolean) => void;
+  onChangeAllCols: (selected: boolean) => void;
+
+  onChangeRowSelected: (rowIndex: number, selected: boolean) => void;
+  onChangeAllRows: (selected: boolean) => void;
+
+  onChangeCell: (rowIndex: number, colIndex: number, value: string) => void;
+  extraRight?: React.ReactNode;
+  disabled?: boolean;
+}) {
+  const {
+    titleLeft,
+    titleRight,
+    columns,
+    columnUnits,
+    selectedCols,
+    selectedRows,
+    rows,
+    mapping,
+    rowErrors,
+    mappingErrors,
+    fieldOptions,
+    onChangeMapping,
+    onChangeColSelected,
+    onChangeAllCols,
+    onChangeRowSelected,
+    onChangeAllRows,
+    onChangeCell,
+    extraRight,
+    disabled,
+  } = props;
+
+  const allRowsChecked =
+    selectedRows.length > 0 && selectedRows.every((v) => v === true);
+  const someRowsChecked = selectedRows.some((v) => v === true);
+
+  const allColsChecked =
+    selectedCols.length > 0 && selectedCols.every((v) => v === true);
+  const someColsChecked = selectedCols.some((v) => v === true);
+
+  // layout
+  const COL_W_LINE = 70;
+  const COL_W_SEL = 44;
+  const COL_W_DATA = 240;
+  const COL_W_COLMASTER = 44;
+
+  const gridTemplateColumns = useMemo(() => {
+    const dataCols = columns.map(() => `${COL_W_DATA}px`).join(" ");
+    return `${COL_W_LINE}px ${COL_W_SEL}px ${dataCols} ${COL_W_COLMASTER}px`;
+  }, [columns]);
+
+  const totalWidth = useMemo(() => {
+    return (
+      COL_W_LINE + COL_W_SEL + columns.length * COL_W_DATA + COL_W_COLMASTER
+    );
+  }, [columns.length]);
+
+  const ROW_HEIGHT = 46;
+  const LIST_HEIGHT = 420;
+
+  type RowData = {
+    rows: { rowNumber: number; cells: string[] }[];
+    columns: string[];
+    selectedCols: boolean[];
+    selectedRows: boolean[];
+    mapping: string[];
+    rowErrors: Record<number, string[]>;
+    disabled?: boolean;
+    onChangeRowSelected: (rowIndex: number, selected: boolean) => void;
+    onChangeCell: (rowIndex: number, colIndex: number, value: string) => void;
+  };
+
+  const itemData: RowData = useMemo(
+    () => ({
+      rows,
+      columns,
+      selectedCols,
+      selectedRows,
+      mapping,
+      rowErrors,
+      disabled,
+      onChangeRowSelected,
+      onChangeCell,
+    }),
+    [
+      rows,
+      columns,
+      selectedCols,
+      selectedRows,
+      mapping,
+      rowErrors,
+      disabled,
+      onChangeRowSelected,
+      onChangeCell,
+    ],
+  );
+
+  const Row = ({ index, style, data }: VirtualRowProps<RowData>) => {
+    const row = data.rows[index];
+    const isRowSelected = data.selectedRows[index] ?? true;
+    const errs = data.rowErrors[index] ?? [];
+
+    return (
+      <div
+        className={`npm-vrow ${errs.length ? "npm-vrow-haserror" : ""}`}
+        style={{ ...style, gridTemplateColumns }}
+      >
+        <div className="npm-vcell npm-vcell-line">{row.rowNumber}</div>
+
+        <div className="npm-vcell npm-vcell-sel">
+          <input
+            type="checkbox"
+            checked={isRowSelected}
+            onChange={(e) => data.onChangeRowSelected(index, e.target.checked)}
+            disabled={data.disabled}
+            aria-label={`Incluir fila ${row.rowNumber}`}
+          />
+        </div>
+
+        {data.columns.map((_, cIdx) => {
+          const colEnabled = data.selectedCols[cIdx] ?? true;
+          const isIgnored =
+            (data.mapping[cIdx] ?? "__ignore__") === "__ignore__";
+
+          const cellDisabled = data.disabled || !colEnabled || !isRowSelected;
+
+          const cls = [
+            "npm-vcell",
+            "npm-vcell-data",
+            isIgnored ? "npm-vcell-ignored" : "",
+            !colEnabled ? "npm-vcell-disabled" : "",
+            !isRowSelected ? "npm-vcell-rowdisabled" : "",
+          ]
+            .filter(Boolean)
+            .join(" ");
+
+          return (
+            <div key={cIdx} className={cls}>
+              <input
+                className="npm-vinput"
+                value={row.cells[cIdx] ?? ""}
+                onChange={(e) => data.onChangeCell(index, cIdx, e.target.value)}
+                disabled={cellDisabled}
+              />
+            </div>
+          );
+        })}
+
+        <div className="npm-vcell npm-vcell-colmaster" />
+      </div>
+    );
+  };
+
+  return (
+    <div className="npm-preview">
+      <div className="npm-previewbar">
+        <span className="npm-badge">{titleLeft}</span>
+
+        <div className="npm-previewbar-right">
+          {extraRight}
+          <span className="npm-badge">{titleRight}</span>
+        </div>
+      </div>
+
+      {mappingErrors.length > 0 ? (
+        <div className="npm-maperror">
+          <strong>Problemas de mapeo:</strong>
+          <ul>
+            {mappingErrors.map((m, i) => (
+              <li key={i}>{m}</li>
+            ))}
+          </ul>
+        </div>
+      ) : null}
+
+      <div className="npm-tablewrap npm-tablewrap--virt">
+        <div className="npm-virt-scroll">
+          {/* HEADER */}
+          <div
+            className="npm-vhead"
+            style={{ gridTemplateColumns, width: totalWidth }}
+          >
+            <div className="npm-vhcell npm-vhcell-line">Línea</div>
+
+            <div className="npm-vhcell npm-vhcell-sel">
+              <input
+                type="checkbox"
+                checked={allRowsChecked}
+                ref={(el) => {
+                  if (!el) return;
+                  el.indeterminate = !allRowsChecked && someRowsChecked;
+                }}
+                onChange={(e) => onChangeAllRows(e.target.checked)}
+                disabled={disabled}
+                aria-label="Seleccionar todas las filas"
+                title="Seleccionar todas las filas"
+              />
+            </div>
+
+            {columns.map((col, cIdx) => {
+              const current = mapping[cIdx] ?? "__ignore__";
+              const unit = (columnUnits?.[cIdx] ?? "").trim();
+              const colEnabled = selectedCols[cIdx] ?? true;
+
+              return (
+                <div
+                  key={cIdx}
+                  className={`npm-vhcell npm-vhcell-data ${
+                    !colEnabled ? "npm-vhcell-disabled" : ""
+                  }`}
+                >
+                  <div className="npm-vh-top">
+                    <div className="npm-vh-title">{col}</div>
+                    <input
+                      type="checkbox"
+                      checked={colEnabled}
+                      onChange={(e) =>
+                        onChangeColSelected(cIdx, e.target.checked)
+                      }
+                      disabled={disabled}
+                      aria-label={`Incluir columna ${col}`}
+                      title="Incluir/Excluir columna"
+                    />
+                  </div>
+
+                  {unit ? <div className="npm-vh-unit">{unit}</div> : null}
+
+                  <select
+                    className="npm-vh-select"
+                    value={current}
+                    onChange={(e) => onChangeMapping(cIdx, e.target.value)}
+                    disabled={disabled || !colEnabled}
+                  >
+                    <option value="__ignore__">Ignorar</option>
+                    {fieldOptions.map((f) => (
+                      <option key={f.key} value={f.key}>
+                        {f.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              );
+            })}
+
+            <div className="npm-vhcell npm-vhcell-colmaster">
+              <input
+                type="checkbox"
+                checked={allColsChecked}
+                ref={(el) => {
+                  if (!el) return;
+                  el.indeterminate = !allColsChecked && someColsChecked;
+                }}
+                onChange={(e) => onChangeAllCols(e.target.checked)}
+                disabled={disabled}
+                aria-label="Seleccionar todas las columnas"
+                title="Seleccionar todas las columnas"
+              />
+            </div>
+          </div>
+
+          {/* BODY (virtualized) */}
+          <div style={{ width: totalWidth }}>
+            <FixedVirtualList<RowData>
+              height={LIST_HEIGHT}
+              width={totalWidth}
+              itemCount={rows.length}
+              itemSize={ROW_HEIGHT}
+              itemData={itemData}
+              overscan={6}
+            >
+              {Row}
+            </FixedVirtualList>
+          </div>
+        </div>
+      </div>
+
+      {Object.keys(rowErrors).length > 0 ? (
+        <div className="npm-maperror">
+          <strong>Errores de filas:</strong> Hay {Object.keys(rowErrors).length}{" "}
+          filas con problemas (solo cuenta filas seleccionadas).
+          <div className="npm-maperrorhint">
+            Tip: revisá duplicados (case-insensitive), vacíos o números
+            inválidos.
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * Virtual list fijo (row height constante).
+ * - Renderiza solo el rango visible + overscan.
+ * - Sin dependencias externas.
+ */
+function FixedVirtualList<T>(props: {
+  height: number;
+  width: number;
+  itemCount: number;
+  itemSize: number;
+  itemData: T;
+  overscan?: number;
+  children: (p: VirtualRowProps<T>) => React.ReactNode;
+}) {
+  const {
+    height,
+    width,
+    itemCount,
+    itemSize,
+    itemData,
+    overscan = 6,
+    children,
+  } = props;
+
+  const ref = useRef<HTMLDivElement | null>(null);
+  const [scrollTop, setScrollTop] = useState(0);
+
+  const onScroll = (e: React.UIEvent<HTMLDivElement>) => {
+    setScrollTop(e.currentTarget.scrollTop);
+  };
+
+  const totalHeight = itemCount * itemSize;
+
+  const startIndex = Math.max(0, Math.floor(scrollTop / itemSize) - overscan);
+  const visibleCount = Math.ceil(height / itemSize) + overscan * 2;
+  const endIndex = Math.min(itemCount - 1, startIndex + visibleCount);
+
+  const items: React.ReactNode[] = [];
+  for (let i = startIndex; i <= endIndex; i += 1) {
+    items.push(
+      <React.Fragment key={i}>
+        {children({
+          index: i,
+          data: itemData,
+          style: {
+            position: "absolute",
+            top: i * itemSize,
+            height: itemSize,
+            width: "100%",
+          },
+        })}
+      </React.Fragment>,
+    );
+  }
+
+  return (
+    <div
+      ref={ref}
+      style={{
+        height,
+        width,
+        overflowY: "auto",
+        overflowX: "hidden",
+        position: "relative",
+      }}
+      onScroll={onScroll}
+    >
+      <div style={{ height: totalHeight, position: "relative" }}>{items}</div>
     </div>
   );
 }

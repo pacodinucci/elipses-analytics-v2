@@ -164,3 +164,14 @@
     ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
     "Courier New", monospace;
 }
+
+/* rojo tenue para celdas inválidas */
+.npm-vcell-invalid {
+  background: rgba(255, 80, 80, 0.14);
+  outline: 1px solid rgba(255, 80, 80, 0.35);
+  outline-offset: -1px;
+}
+
+.npm-vcell-invalid .npm-vinput {
+  color: rgba(255, 220, 220, 0.95);
+}

@@ -158,14 +158,6 @@
   color: #475569;
 }
 
-.npm-hint code {
-  font-size: 12px;
-  padding: 1px 6px;
-  border-radius: 6px;
-  background: #f1f5f9;
-  border: 1px solid #e2e8f0;
-}
-
 .npm-actions {
   display: flex;
   justify-content: flex-end;
@@ -178,4 +170,218 @@
   .npm-row--triple {
     grid-template-columns: 1fr;
   }
+}
+
+/* ===== Preview table ===== */
+
+.npm-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.npm-previewbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.npm-previewbar-right {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.npm-badge {
+  font-size: 12px;
+  color: #0f172a;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  padding: 4px 8px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.npm-tablewrap {
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.npm-empty {
+  padding: 10px;
+  font-size: 13px;
+  color: #64748b;
+}
+
+/* ===== Mapping UI (errors) ===== */
+
+.npm-maperror {
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #991b1b;
+  border-radius: 10px;
+  padding: 10px;
+  font-size: 12px;
+}
+
+.npm-maperror ul {
+  margin: 6px 0 0 18px;
+  padding: 0;
+}
+
+.npm-maperrorhint {
+  margin-top: 6px;
+  color: #7f1d1d;
+}
+
+/* =======================================================
+   Virtualized table (react-window)
+   ======================================================= */
+
+.npm-tablewrap--virt {
+  overflow: hidden;
+}
+
+.npm-virt-scroll {
+  overflow: auto;
+}
+
+/* HEADER grid */
+.npm-vhead {
+  display: grid;
+  align-items: start;
+  background: #f8fafc;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.npm-vhcell {
+  padding: 10px;
+  border-right: 1px solid #eef2f7;
+}
+
+.npm-vhcell:last-child {
+  border-right: none;
+}
+
+.npm-vhcell-line {
+  font-weight: 700;
+  font-size: 12px;
+  color: #334155;
+}
+
+.npm-vhcell-sel,
+.npm-vhcell-colmaster {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.npm-vhcell-data {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.npm-vhcell-disabled {
+  opacity: 0.55;
+}
+
+.npm-vh-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.npm-vh-title {
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+}
+
+.npm-vh-unit {
+  font-size: 12px;
+  opacity: 0.7;
+  margin-top: 2px;
+  margin-bottom: 2px;
+}
+
+.npm-vh-select {
+  height: 30px;
+  font-size: 12px;
+  border-radius: 7px;
+  border: 1px solid #cbd5e1;
+  padding: 0 8px;
+  outline: none;
+  background: #ffffff;
+}
+
+.npm-vh-select:focus {
+  border-color: #0f172a;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.12);
+}
+
+/* ROW grid */
+.npm-vrow {
+  display: grid;
+  align-items: center;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.npm-vrow-haserror {
+  background: rgba(220, 38, 38, 0.04);
+}
+
+.npm-vcell {
+  padding: 8px 10px;
+  border-right: 1px solid #f1f5f9;
+}
+
+.npm-vcell:last-child {
+  border-right: none;
+}
+
+.npm-vcell-line {
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.npm-vcell-sel,
+.npm-vcell-colmaster {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.npm-vinput {
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  font-size: 13px;
+  border-radius: 7px;
+  border: 1px solid #cbd5e1;
+  outline: none;
+  background: #fff;
+}
+
+.npm-vinput:focus {
+  border-color: #0f172a;
+  box-shadow: 0 0 0 2px rgba(15, 23, 42, 0.12);
+}
+
+.npm-vcell-ignored {
+  opacity: 0.55;
+}
+
+.npm-vcell-disabled {
+  opacity: 0.55;
+}
+
+.npm-vcell-rowdisabled {
+  opacity: 0.6;
 }
