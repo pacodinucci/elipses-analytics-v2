@@ -176,17 +176,11 @@ export class CoreDataRepository {
     return rows.map(mapProyecto);
   }
 
-  /**
-   * ✅ Recalcula areal desde pozos (min/max) + margenes
-   * y actualiza cellSizeX/Y según Nx/Ny.
-   * ✅ NO toca CRS (queda null por ahora).
-   */
   async recomputeProyectoArealFromPozos(
     input: RecomputeProyectoArealFromPozosInput,
   ): Promise<Proyecto> {
     const now = new Date().toISOString();
 
-    // 1) bounds de pozos
     const boundsRows = await databaseService.readAll(
       `SELECT
         MIN(x) AS minX,
@@ -220,7 +214,6 @@ export class CoreDataRepository {
       throw new Error("Límites areales inválidos luego de aplicar márgenes");
     }
 
-    // 2) Nx/Ny
     const projRows = await databaseService.readAll(
       `SELECT id, grillaNx, grillaNy
        FROM Proyecto
@@ -236,7 +229,6 @@ export class CoreDataRepository {
     const cellSizeX = (maxX - minX) / grillaNx;
     const cellSizeY = (maxY - minY) / grillaNy;
 
-    // 3) update
     await databaseService.run(
       `UPDATE Proyecto
        SET
@@ -349,37 +341,111 @@ export class CoreDataRepository {
   }
 
   // ----------------------------
-  // PozoCapa
+  // PozoCapa (hardening + UPSERT)
   // ----------------------------
+
+  private async assertPozoBelongsToProject(args: {
+    proyectoId: string;
+    pozoId: string;
+  }): Promise<void> {
+    const rows = await databaseService.readAll(
+      `SELECT id
+       FROM Pozo
+       WHERE id = ? AND proyectoId = ?
+       LIMIT 1`,
+      [args.pozoId, args.proyectoId],
+    );
+    if (rows.length === 0) {
+      throw new Error(
+        `Pozo no encontrado o no pertenece al proyecto (pozoId=${args.pozoId})`,
+      );
+    }
+  }
+
+  private async assertCapaBelongsToProject(args: {
+    proyectoId: string;
+    capaId: string;
+  }): Promise<void> {
+    const rows = await databaseService.readAll(
+      `SELECT id
+       FROM Capa
+       WHERE id = ? AND proyectoId = ?
+       LIMIT 1`,
+      [args.capaId, args.proyectoId],
+    );
+    if (rows.length === 0) {
+      throw new Error(
+        `Capa no encontrada o no pertenece al proyecto (capaId=${args.capaId})`,
+      );
+    }
+  }
+
   async createPozoCapa(input: CreatePozoCapaInput): Promise<PozoCapa> {
     const now = new Date().toISOString();
 
-    await databaseService.run(
-      `INSERT INTO PozoCapa (id, proyectoId, pozoId, capaId, tope, base, createdAt, updatedAt, extrasJson)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        input.id,
-        input.proyectoId,
-        input.pozoId,
-        input.capaId,
-        input.tope,
-        input.base,
-        now,
-        now,
-        JSON.stringify({}),
-      ],
-    );
+    // 2do candado (el domain validator ya exige tope < base)
+    if (input.tope >= input.base) {
+      throw new Error("PozoCapa inválido: tope debe ser menor que base");
+    }
 
-    const rows = await databaseService.readAll(
-      `SELECT id, proyectoId, pozoId, capaId, tope, base, createdAt, updatedAt, extrasJson
-       FROM PozoCapa
-       WHERE id = ?
-       LIMIT 1`,
-      [input.id],
-    );
+    await databaseService.run("BEGIN TRANSACTION");
+    try {
+      await this.assertPozoBelongsToProject({
+        proyectoId: input.proyectoId,
+        pozoId: input.pozoId,
+      });
 
-    if (rows.length === 0) throw new Error("PozoCapa creation failed");
-    return mapPozoCapa(rows[0]);
+      await this.assertCapaBelongsToProject({
+        proyectoId: input.proyectoId,
+        capaId: input.capaId,
+      });
+
+      // ✅ UPSERT por UNIQUE(proyectoId, pozoId, capaId)
+      // - Si existe, actualiza tope/base/updatedAt/extrasJson
+      await databaseService.run(
+        `INSERT INTO PozoCapa (
+           id, proyectoId, pozoId, capaId, tope, base, createdAt, updatedAt, extrasJson
+         )
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+         ON CONFLICT(proyectoId, pozoId, capaId) DO UPDATE SET
+           tope = excluded.tope,
+           base = excluded.base,
+           updatedAt = excluded.updatedAt,
+           extrasJson = excluded.extrasJson`,
+        [
+          input.id,
+          input.proyectoId,
+          input.pozoId,
+          input.capaId,
+          input.tope,
+          input.base,
+          now,
+          now,
+          JSON.stringify({}),
+        ],
+      );
+
+      // ⚠️ Leer por clave natural (porque si fue UPDATE, el id insertado no aplica)
+      const rows = await databaseService.readAll(
+        `SELECT id, proyectoId, pozoId, capaId, tope, base, createdAt, updatedAt, extrasJson
+         FROM PozoCapa
+         WHERE proyectoId = ? AND pozoId = ? AND capaId = ?
+         LIMIT 1`,
+        [input.proyectoId, input.pozoId, input.capaId],
+      );
+
+      if (rows.length === 0) throw new Error("PozoCapa upsert failed");
+
+      await databaseService.run("COMMIT");
+      return mapPozoCapa(rows[0]);
+    } catch (err) {
+      try {
+        await databaseService.run("ROLLBACK");
+      } catch {
+        // noop
+      }
+      throw err;
+    }
   }
 
   async listPozoCapaByProject(proyectoId: string): Promise<PozoCapa[]> {
