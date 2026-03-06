@@ -1,10 +1,6 @@
-// types.d.ts (v2) — IPC + backend types + globals UI mínimos
 export {};
 
 declare global {
-  // ============================================================
-  // ✅ UI legacy rows (DTOs del front) — para mantener DX de v1
-  // ============================================================
   type ProyectoRow = {
     id: string;
     nombre: string;
@@ -45,9 +41,6 @@ declare global {
     base: number;
   };
 
-  // ============================================================
-  // ✅ Backend domain types (globales para el front)
-  // ============================================================
   type BackendTruthRegistry =
     import("./src/electron/backend/models.js").BackendTruthRegistry;
   type BackendBootstrapStatus =
@@ -89,9 +82,6 @@ declare global {
   type Elipse = import("./src/electron/backend/models.js").Elipse;
   type VariableMapa = import("./src/electron/backend/models.js").VariableMapa;
 
-  // ============================================================
-  // ✅ Imports domain (v2)
-  // ============================================================
   type ImportSeverity =
     import("./src/electron/modules/imports/domain/importJob.js").ImportSeverity;
   type ImportJobError =
@@ -110,13 +100,13 @@ declare global {
   type ImportJobResult =
     import("./src/electron/modules/imports/domain/importJob.js").ImportJobResult;
 
-  // ✅ FIX: payload para pozos (TXT)
   type PozoTxtImportPayload =
     import("./src/electron/modules/imports/domain/importJob.js").PozoTxtImportPayload;
 
-  // ============================================================
-  // ✅ Otros inputs (v2)
-  // ============================================================
+  // ✅ NUEVO
+  type ScenarioTxtImportPayload =
+    import("./src/electron/modules/imports/domain/importJob.js").ScenarioTxtImportPayload;
+
   type UpsertMapInput =
     import("./src/electron/modules/maps/domain/map.js").UpsertMapInput;
 
@@ -179,9 +169,6 @@ declare global {
 
   type Unsubscribe = () => void;
 
-  // ============================================================
-  // ✅ Dynamic Fields (defs + extrasJson)
-  // ============================================================
   type DynamicEntity =
     | "Proyecto"
     | "Unidades"
@@ -261,9 +248,6 @@ declare global {
       }
     | { ok: false; error: string };
 
-  // ============================================================
-  // ✅ Runtime stats
-  // ============================================================
   type Statistics = {
     cpuUsage: number;
     ramUsage: number;
@@ -279,9 +263,6 @@ declare global {
   type LegacyVisualizerMapResponse =
     import("./src/electron/modules/maps/interfaces/legacyAdapter.js").LegacyVisualizerMapResponse;
 
-  // ============================================================
-  // ✅ IPC mapping (tipos de retorno por canal)
-  // ============================================================
   type EventPayloadMapping = {
     statistics: Statistics;
     getStaticData: StaticData;
@@ -309,9 +290,12 @@ declare global {
     importMapsCommit: ImportJobResult;
     importCapasDryRun: ImportJobResult;
     importCapasCommit: ImportJobResult;
-
     importPozosDryRun: ImportJobResult;
     importPozosCommit: ImportJobResult;
+
+    // ✅ NUEVO
+    importEscenariosDryRun: ImportJobResult;
+    importEscenariosCommit: ImportJobResult;
 
     productionCreate: Produccion;
     productionListByProject: Produccion[];
@@ -371,9 +355,6 @@ declare global {
     coreProyectoRecomputeArealFromPozos: { proyecto: Proyecto };
   };
 
-  // ============================================================
-  // Window.electron (API expuesta por preload)
-  // ============================================================
   interface Window {
     electron: {
       subscribeStatistics: (
@@ -419,13 +400,19 @@ declare global {
       importCapasCommit: (
         payload: CapaTxtImportPayload,
       ) => Promise<ImportJobResult>;
-
-      // ✅ FIX: Pozos (TXT)
       importPozosDryRun: (
         payload: PozoTxtImportPayload,
       ) => Promise<ImportJobResult>;
       importPozosCommit: (
         payload: PozoTxtImportPayload,
+      ) => Promise<ImportJobResult>;
+
+      // ✅ NUEVO
+      importEscenariosDryRun: (
+        payload: ScenarioTxtImportPayload,
+      ) => Promise<ImportJobResult>;
+      importEscenariosCommit: (
+        payload: ScenarioTxtImportPayload,
       ) => Promise<ImportJobResult>;
 
       productionCreate: (payload: CreateProduccionInput) => Promise<Produccion>;

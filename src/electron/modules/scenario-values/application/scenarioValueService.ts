@@ -4,16 +4,14 @@ import { migrations } from "../../../shared/db/migrations.js";
 import type { CreateValorEscenarioInput } from "../domain/scenarioValue.js";
 import { validateCreateValorEscenarioInput } from "../domain/scenarioValue.js";
 import { ScenarioValueRepository } from "../infrastructure/scenarioValueRepository.js";
-
-// ✅ para validar por tipo
 import { ScenarioRepository } from "../../scenarios/infrastructure/scenarioRepository.js";
 
 function hasAnyNonNull(values: Array<number | null | undefined>): boolean {
   return values.some((v) => v != null);
 }
 
-function normalizeTypeName(name: string): string {
-  return name.trim().toLowerCase();
+function normalizeTipoId(id: string): string {
+  return id.trim().toLowerCase();
 }
 
 export class ScenarioValueService {
@@ -21,10 +19,6 @@ export class ScenarioValueService {
   private readonly scenarioRepo = new ScenarioRepository();
   private schemaReady = false;
 
-  /**
-   * ✅ Mantiene el nombre "create" por compat de IPC,
-   * pero semánticamente es UPSERT por llave compuesta.
-   */
   async create(input: CreateValorEscenarioInput): Promise<ValorEscenario> {
     validateCreateValorEscenarioInput(input);
     await this.ensureSchema();
@@ -67,42 +61,42 @@ export class ScenarioValueService {
       );
     }
 
-    const prodVals = [input.petroleo, input.agua, input.gas];
-    const inyVals = [input.inyeccionAgua, input.inyeccionGas];
-
-    // ✅ regla base universal: alguna métrica debe venir (si no, no tiene sentido la fila)
-    if (!hasAnyNonNull([...prodVals, ...inyVals])) {
+    if (
+      !hasAnyNonNull([
+        input.petroleo,
+        input.agua,
+        input.gas,
+        input.inyeccionGas,
+        input.inyeccionAgua,
+      ])
+    ) {
       throw new Error(
-        `ValorEscenario inválido: se requiere al menos un valor no-null (escenarioId=${input.escenarioId}).`,
+        `ValorEscenario inválido: se requiere al menos una métrica no-null.`,
       );
     }
 
-    const t = normalizeTypeName(tipo.nombre);
+    const tipoId = normalizeTipoId(tipo.id);
 
-    // Heurísticas por convención de nombre
-    const isInjection = t.includes("iny") || t.includes("inye");
-    const isProduction = t.includes("prod") || t.includes("hist");
-    const isMixed =
-      t.includes("mix") || t.includes("amb") || t.includes("both");
-
-    if (isMixed) {
-      // permite cualquier combinación, ya pasó la regla base
+    if (tipoId === "historia") {
+      if (input.capaId != null && String(input.capaId).trim() !== "") {
+        throw new Error(
+          `ValorEscenario inválido para tipo "historia": no debe informar capaId.`,
+        );
+      }
       return;
     }
 
-    if (isInjection && !hasAnyNonNull(inyVals)) {
-      throw new Error(
-        `ValorEscenario inválido para tipo "${tipo.nombre}": se requiere inyección (inyeccionAgua/inyeccionGas) no-null.`,
-      );
+    if (tipoId === "datos") {
+      if (!input.capaId || !String(input.capaId).trim()) {
+        throw new Error(
+          `ValorEscenario inválido para tipo "datos": capaId es obligatorio.`,
+        );
+      }
+      return;
     }
 
-    if (isProduction && !hasAnyNonNull(prodVals)) {
-      throw new Error(
-        `ValorEscenario inválido para tipo "${tipo.nombre}": se requiere producción (petroleo/agua/gas) no-null.`,
-      );
-    }
-
-    // Si no matchea ningún tipo conocido: permisivo (solo regla base).
+    // primaria / inyeccion / otros:
+    // por ahora no imponemos reglas extra en el create manual
   }
 
   private async ensureSchema(): Promise<void> {

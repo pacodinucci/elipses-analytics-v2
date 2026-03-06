@@ -2,11 +2,23 @@ import type { ValorEscenario } from "../../../backend/models.js";
 import { databaseService } from "../../../shared/db/index.js";
 import type { CreateValorEscenarioInput } from "../domain/scenarioValue.js";
 
+const NO_CAPA_SCOPE_KEY = "__NO_CAPA__";
+
 function toNullableNumber(v: unknown): number | null {
   if (v == null) return null;
-  // DuckDB puede devolver bigint/decimal como number o string dependiendo del driver
   const n = typeof v === "number" ? v : Number(String(v));
   return Number.isFinite(n) ? n : null;
+}
+
+function toNullableString(v: unknown): string | null {
+  if (v == null) return null;
+  const s = String(v).trim();
+  return s.length > 0 ? s : null;
+}
+
+function buildCapaScopeKey(capaId?: string | null): string {
+  const normalized = capaId?.trim() ?? "";
+  return normalized.length > 0 ? normalized : NO_CAPA_SCOPE_KEY;
 }
 
 function mapValorEscenario(row: Record<string, unknown>): ValorEscenario {
@@ -14,10 +26,9 @@ function mapValorEscenario(row: Record<string, unknown>): ValorEscenario {
     id: String(row.id),
     escenarioId: String(row.escenarioId),
     pozoId: String(row.pozoId),
-    capaId: String(row.capaId),
+    capaId: toNullableString(row.capaId),
     fecha: String(row.fecha),
 
-    // ✅ claves: preservar NULL (no convertir a 0)
     petroleo: toNullableNumber(row.petroleo),
     agua: toNullableNumber(row.agua),
     gas: toNullableNumber(row.gas),
@@ -30,32 +41,27 @@ function mapValorEscenario(row: Record<string, unknown>): ValorEscenario {
 }
 
 export class ScenarioValueRepository {
-  /**
-   * ✅ UPSERT por llave compuesta (escenarioId, pozoId, capaId, fecha)
-   * - createdAt se mantiene
-   * - updatedAt se actualiza
-   *
-   * Nota: requiere el UNIQUE (escenarioId, pozoId, capaId, fecha) que ya tenés.
-   */
   async upsert(input: CreateValorEscenarioInput): Promise<ValorEscenario> {
     const now = new Date().toISOString();
 
-    // Normalizar undefined -> null (DB nullable)
+    const capaId = input.capaId?.trim() ? input.capaId.trim() : null;
+    const capaScopeKey = buildCapaScopeKey(capaId);
+
     const petroleo = input.petroleo ?? null;
     const agua = input.agua ?? null;
     const gas = input.gas ?? null;
     const inyeccionGas = input.inyeccionGas ?? null;
     const inyeccionAgua = input.inyeccionAgua ?? null;
 
-    // ✅ UPSERT: si existe por UNIQUE compuesto, hace update
     await databaseService.run(
       `INSERT INTO ValorEscenario (
-        id, escenarioId, pozoId, capaId, fecha,
+        id, escenarioId, pozoId, capaId, capaScopeKey, fecha,
         petroleo, agua, gas, inyeccionGas, inyeccionAgua,
         createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT (escenarioId, pozoId, capaId, fecha)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT (escenarioId, pozoId, capaScopeKey, fecha)
       DO UPDATE SET
+        capaId = EXCLUDED.capaId,
         petroleo = EXCLUDED.petroleo,
         agua = EXCLUDED.agua,
         gas = EXCLUDED.gas,
@@ -66,7 +72,8 @@ export class ScenarioValueRepository {
         input.id,
         input.escenarioId,
         input.pozoId,
-        input.capaId,
+        capaId,
+        capaScopeKey,
         input.fecha,
         petroleo,
         agua,
@@ -78,8 +85,6 @@ export class ScenarioValueRepository {
       ],
     );
 
-    // ✅ leer por llave compuesta (no por id) porque en upsert
-    // puede existir un id previo distinto al input.id
     const rows = await databaseService.readAll(
       `SELECT id, escenarioId, pozoId, capaId, fecha,
               petroleo, agua, gas, inyeccionGas, inyeccionAgua,
@@ -87,10 +92,10 @@ export class ScenarioValueRepository {
        FROM ValorEscenario
        WHERE escenarioId = ?
          AND pozoId = ?
-         AND capaId = ?
+         AND capaScopeKey = ?
          AND fecha = ?
        LIMIT 1`,
-      [input.escenarioId, input.pozoId, input.capaId, input.fecha],
+      [input.escenarioId, input.pozoId, capaScopeKey, input.fecha],
     );
 
     if (rows.length === 0) {
@@ -100,7 +105,6 @@ export class ScenarioValueRepository {
     return mapValorEscenario(rows[0]);
   }
 
-  // ✅ Compat (si algún código interno llama create)
   async create(input: CreateValorEscenarioInput): Promise<ValorEscenario> {
     return this.upsert(input);
   }

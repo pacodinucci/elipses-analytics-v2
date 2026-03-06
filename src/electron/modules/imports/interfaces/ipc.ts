@@ -1,4 +1,3 @@
-// src/electron/modules/imports/interfaces/ipc.ts
 import { ipcMain } from "electron";
 import { validateEventFrame } from "../../../util.js";
 import { importService } from "../application/importService.js";
@@ -6,6 +5,7 @@ import type {
   CapaTxtImportPayload,
   MapImportPayload,
   PozoTxtImportPayload,
+  ScenarioTxtImportPayload,
 } from "../domain/importJob.js";
 
 function validateIpcEvent(event: Electron.IpcMainInvokeEvent) {
@@ -47,7 +47,6 @@ export function registerImportIpcHandlers() {
     },
   );
 
-  // ✅ Pozos (TXT)
   ipcMain.handle(
     "importPozosDryRun",
     async (event, payload: PozoTxtImportPayload) => {
@@ -61,6 +60,22 @@ export function registerImportIpcHandlers() {
     async (event, payload: PozoTxtImportPayload) => {
       validateIpcEvent(event);
       return importService.commitPozoTxtImport(payload);
+    },
+  );
+
+  ipcMain.handle(
+    "importEscenariosDryRun",
+    async (event, payload: ScenarioTxtImportPayload) => {
+      validateIpcEvent(event);
+      return importService.dryRunScenarioTxtImport(payload);
+    },
+  );
+
+  ipcMain.handle(
+    "importEscenariosCommit",
+    async (event, payload: ScenarioTxtImportPayload) => {
+      validateIpcEvent(event);
+      return importService.commitScenarioTxtImport(payload);
     },
   );
 }

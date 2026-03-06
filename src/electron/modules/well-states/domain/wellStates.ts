@@ -1,5 +1,3 @@
-// src/electron/modules/well-states/domain/wellStates.ts
-
 export interface CreateTipoEstadoPozoInput {
   id: string;
   nombre: string;
@@ -7,13 +5,8 @@ export interface CreateTipoEstadoPozoInput {
 
 export interface CreateSetEstadoPozosInput {
   id: string;
-
-  // ✅ schema v1 + models.ts: requerido
   proyectoId: string;
-
-  // ✅ v4+: nullable (link inverso a simulación)
   simulacionId: string | null;
-
   nombre: string;
 }
 
@@ -53,8 +46,6 @@ export function validateCreateSetEstadoPozosInput(
   requireString(input.id, "id");
   requireString(input.proyectoId, "proyectoId");
   requireString(input.nombre, "nombre");
-
-  // normalización defensiva: permitimos que venga "" o "null" y lo tratamos como null
   input.simulacionId = optionalNullableString(input.simulacionId);
 }
 

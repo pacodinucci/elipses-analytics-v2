@@ -1,5 +1,8 @@
-// src/electron/modules/simulations/domain/simulation.ts
-import type { Simulacion, TipoSimulacion } from "../../../backend/models.js";
+import type {
+  Simulacion,
+  SimulacionEscenario,
+  TipoSimulacion,
+} from "../../../backend/models.js";
 
 export interface CreateTipoSimulacionInput {
   id: string;
@@ -10,10 +13,13 @@ export interface CreateSimulacionInput {
   id: string;
   proyectoId: string;
   tipoSimulacionId: string;
-  escenarioSimulacionId: string;
+  nombre: string;
+}
 
-  // ✅ schema v1 + models.ts: requerido
-  setEstadoPozosId: string;
+export interface LinkSimulacionEscenarioInput {
+  id: string;
+  simulacionId: string;
+  escenarioId: string;
 }
 
 function requireString(value: unknown, field: string): void {
@@ -35,9 +41,17 @@ export function validateCreateSimulacionInput(
   requireString(input.id, "id");
   requireString(input.proyectoId, "proyectoId");
   requireString(input.tipoSimulacionId, "tipoSimulacionId");
-  requireString(input.escenarioSimulacionId, "escenarioSimulacionId");
-  requireString(input.setEstadoPozosId, "setEstadoPozosId");
+  requireString(input.nombre, "nombre");
+}
+
+export function validateLinkSimulacionEscenarioInput(
+  input: LinkSimulacionEscenarioInput,
+): void {
+  requireString(input.id, "id");
+  requireString(input.simulacionId, "simulacionId");
+  requireString(input.escenarioId, "escenarioId");
 }
 
 export type SimulationEntity = Simulacion;
 export type SimulationTypeEntity = TipoSimulacion;
+export type SimulationScenarioLinkEntity = SimulacionEscenario;

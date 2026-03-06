@@ -1,4 +1,3 @@
-// src/electron/modules/core-data/application/coreDataService.ts
 import { randomUUID } from "node:crypto";
 
 import type {
@@ -30,6 +29,7 @@ import {
 
 import { CoreDataRepository } from "../infrastructure/coreDataRepository.js";
 import { variablesService } from "../../variables/application/variablesService.js";
+import { simulationService } from "../../simulations/application/simulationService.js";
 
 export class CoreDataService {
   private readonly repository = new CoreDataRepository();
@@ -41,6 +41,10 @@ export class CoreDataService {
    * - grillaUnidad = "m"
    * - Nx = Ny = gridDim
    * - areal/cellSize null hasta cargar pozos
+   *
+   * ✅ Además:
+   * - asegura Unidades default del proyecto
+   * - crea Simulacion "default"
    */
   async initializeProyecto(
     input: CreateProyectoBootstrapInput,
@@ -62,7 +66,7 @@ export class CoreDataService {
       arealMinY: null,
       arealMaxX: null,
       arealMaxY: null,
-      arealCRS: null, // ✅ por ahora null
+      arealCRS: null,
 
       grillaNx: input.gridDim,
       grillaNy: input.gridDim,
@@ -70,17 +74,15 @@ export class CoreDataService {
       grillaCellSizeX: null,
       grillaCellSizeY: null,
 
-      grillaUnidad: "m", // ✅ fijo
+      grillaUnidad: "m",
     });
 
     await variablesService.ensureDefaultsForProject(proyectoId);
+    await this.ensureDefaultProjectArtifacts(proyectoId);
 
     return { proyecto };
   }
 
-  /**
-   * ✅ Recalcular areal a partir de pozos + márgenes
-   */
   async recomputeProyectoArealFromPozos(
     input: RecomputeProyectoArealFromPozosInput,
   ): Promise<{ proyecto: Proyecto }> {
@@ -98,6 +100,7 @@ export class CoreDataService {
 
     const proyecto = await this.repository.createProyecto(input);
     await variablesService.ensureDefaultsForProject(proyecto.id);
+    await this.ensureDefaultProjectArtifacts(proyecto.id);
 
     return proyecto;
   }
@@ -141,6 +144,46 @@ export class CoreDataService {
     if (!proyectoId) throw new Error("proyectoId is required");
     await this.ensureSchema();
     return this.repository.listPozoCapaByProject(proyectoId);
+  }
+
+  private async ensureDefaultProjectArtifacts(
+    proyectoId: string,
+  ): Promise<void> {
+    await this.ensureDefaultTipoSimulacion();
+    await this.ensureDefaultUnidades(proyectoId);
+
+    const simulacionId = randomUUID();
+
+    await simulationService.createSimulacion({
+      id: simulacionId,
+      proyectoId,
+      tipoSimulacionId: "history-match",
+      nombre: "default",
+    });
+  }
+
+  private async ensureDefaultTipoSimulacion(): Promise<void> {
+    await databaseService.run(
+      `INSERT INTO TipoSimulacion (id, nombre, extrasJson)
+       SELECT ?, ?, '{}'
+       WHERE NOT EXISTS (SELECT 1 FROM TipoSimulacion WHERE id = ?)`,
+      ["history-match", "history match", "history-match"],
+    );
+  }
+
+  private async ensureDefaultUnidades(proyectoId: string): Promise<void> {
+    const now = new Date().toISOString();
+
+    await databaseService.run(
+      `INSERT INTO Unidades (id, proyectoId, unidad, configJson, createdAt, updatedAt, extrasJson)
+       SELECT ?, ?, ?, '{}', ?, ?, '{}'
+       WHERE NOT EXISTS (
+         SELECT 1
+         FROM Unidades
+         WHERE proyectoId = ? AND unidad = ?
+       )`,
+      [randomUUID(), proyectoId, "m", now, now, proyectoId, "m"],
+    );
   }
 
   private async ensureSchema(): Promise<void> {

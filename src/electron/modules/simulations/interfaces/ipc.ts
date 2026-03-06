@@ -4,6 +4,7 @@ import { simulationService } from "../application/simulationService.js";
 import type {
   CreateSimulacionInput,
   CreateTipoSimulacionInput,
+  LinkSimulacionEscenarioInput,
 } from "../domain/simulation.js";
 
 export function registerSimulationIpcHandlers() {
@@ -40,6 +41,19 @@ export function registerSimulationIpcHandlers() {
 
       validateEventFrame(frame);
       return simulationService.createSimulacion(payload);
+    },
+  );
+
+  ipcMain.handle(
+    "simulationLinkScenario",
+    async (event, payload: LinkSimulacionEscenarioInput) => {
+      const frame = event.senderFrame;
+      if (!frame) {
+        throw new Error("Missing senderFrame");
+      }
+
+      validateEventFrame(frame);
+      return simulationService.linkSimulacionEscenario(payload);
     },
   );
 

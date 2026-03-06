@@ -1,4 +1,3 @@
-// src/electron/shared/db/migrations.ts
 export interface Migration {
   version: number;
   name: string;
@@ -174,14 +173,27 @@ const initialSchemaStatements = [
     valor DOUBLE NOT NULL
   )`,
 
+  /**
+   * ✅ Simulacion independiente:
+   * - no exige Escenario
+   * - no exige SetEstadoPozos
+   */
   `CREATE TABLE IF NOT EXISTS Simulacion (
     id VARCHAR PRIMARY KEY,
     proyectoId VARCHAR NOT NULL REFERENCES Proyecto(id),
     tipoSimulacionId VARCHAR NOT NULL REFERENCES TipoSimulacion(id),
-    escenarioSimulacionId VARCHAR NOT NULL REFERENCES Escenario(id),
-    setEstadoPozosId VARCHAR NOT NULL REFERENCES SetEstadoPozos(id),
+    nombre VARCHAR NOT NULL,
     createdAt TIMESTAMP NOT NULL,
     updatedAt TIMESTAMP NOT NULL
+  )`,
+
+  `CREATE TABLE IF NOT EXISTS SimulacionEscenario (
+    id VARCHAR PRIMARY KEY,
+    simulacionId VARCHAR NOT NULL REFERENCES Simulacion(id),
+    escenarioId VARCHAR NOT NULL REFERENCES Escenario(id),
+    createdAt TIMESTAMP NOT NULL,
+    updatedAt TIMESTAMP NOT NULL,
+    UNIQUE(simulacionId)
   )`,
 
   /**
@@ -249,15 +261,14 @@ const importPipelineStatements = [
   )`,
 ];
 
+/**
+ * ✅ v4 ahora no intenta derivar SetEstadoPozos.simulacionId desde Simulacion,
+ * porque Simulacion ya no tiene setEstadoPozosId.
+ */
 const domainRefactorV4Statements = [
   `ALTER TABLE SetEstadoPozos ADD COLUMN IF NOT EXISTS simulacionId VARCHAR`,
   `ALTER TABLE ElipseValor ADD COLUMN IF NOT EXISTS simulacionId VARCHAR`,
   `ALTER TABLE Mapa ADD COLUMN IF NOT EXISTS grupoVariableId VARCHAR`,
-
-  `UPDATE SetEstadoPozos s
-   SET simulacionId = sim.id
-   FROM Simulacion sim
-   WHERE sim.setEstadoPozosId = s.id`,
 
   `UPDATE Mapa
    SET grupoVariableId = variableMapaId
@@ -394,6 +405,8 @@ const dynamicFieldsV8Statements = [
 
   `ALTER TABLE import_jobs ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
   `ALTER TABLE import_job_errors ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
+
+  `ALTER TABLE SimulacionEscenario ADD COLUMN IF NOT EXISTS extrasJson JSON DEFAULT '{}'`,
 
   `CREATE TABLE IF NOT EXISTS DynamicFieldDef (
     id VARCHAR PRIMARY KEY,
@@ -533,13 +546,69 @@ const restoreVariableMapaV12Statements = [
   `ALTER TABLE Mapa__v12 RENAME TO Mapa`,
 ];
 
-/**
- * ✅ v13: NO-OP
- * DuckDB no permite ALTER/DROP de columnas NOT NULL en tablas con dependencias/FKs.
- * El baseline (v1) ya nace con Proyecto.areal* y grillaCellSize* NULLABLE,
- * así que no necesitamos tocar nada acá.
- */
 const proyectoArealNullableV13Statements: string[] = [];
+
+const valorEscenarioNullableLayerV14Statements = [
+  `CREATE TABLE IF NOT EXISTS ValorEscenario__v14 (
+    id VARCHAR PRIMARY KEY,
+    escenarioId VARCHAR NOT NULL REFERENCES Escenario(id),
+    pozoId VARCHAR NOT NULL REFERENCES Pozo(id),
+    capaId VARCHAR REFERENCES Capa(id),
+    capaScopeKey VARCHAR NOT NULL,
+    fecha DATE NOT NULL,
+
+    petroleo DOUBLE,
+    agua DOUBLE,
+    gas DOUBLE,
+    inyeccionGas DOUBLE,
+    inyeccionAgua DOUBLE,
+
+    createdAt TIMESTAMP NOT NULL,
+    updatedAt TIMESTAMP NOT NULL,
+    extrasJson JSON NOT NULL DEFAULT '{}',
+
+    UNIQUE(escenarioId, pozoId, capaScopeKey, fecha)
+  )`,
+
+  `INSERT INTO ValorEscenario__v14 (
+    id, escenarioId, pozoId, capaId, capaScopeKey, fecha,
+    petroleo, agua, gas, inyeccionGas, inyeccionAgua,
+    createdAt, updatedAt, extrasJson
+  )
+   SELECT
+    id,
+    escenarioId,
+    pozoId,
+    capaId,
+    COALESCE(capaId, '__NO_CAPA__') AS capaScopeKey,
+    fecha,
+    petroleo,
+    agua,
+    gas,
+    inyeccionGas,
+    inyeccionAgua,
+    createdAt,
+    updatedAt,
+    COALESCE(extrasJson, '{}')
+   FROM ValorEscenario`,
+
+  `DROP TABLE ValorEscenario`,
+  `ALTER TABLE ValorEscenario__v14 RENAME TO ValorEscenario`,
+
+  `CREATE INDEX IF NOT EXISTS ix_valorescenario_escenario_fecha
+   ON ValorEscenario(escenarioId, fecha)`,
+
+  `CREATE INDEX IF NOT EXISTS ix_valorescenario_escenario_pozo_fecha
+   ON ValorEscenario(escenarioId, pozoId, fecha)`,
+
+  `CREATE INDEX IF NOT EXISTS ix_valorescenario_escenario_capa_fecha
+   ON ValorEscenario(escenarioId, capaId, fecha)`,
+];
+
+/**
+ * ✅ v15 queda NO-OP en esquema nuevo.
+ */
+const simulacionEscenarioLinkV15Statements: string[] = [];
 
 export const migrations: Migration[] = [
   {
@@ -606,5 +675,15 @@ export const migrations: Migration[] = [
     version: 13,
     name: "project_areal_nullable_v13_noop",
     statements: proyectoArealNullableV13Statements,
+  },
+  {
+    version: 14,
+    name: "valor_escenario_nullable_layer_v14",
+    statements: valorEscenarioNullableLayerV14Statements,
+  },
+  {
+    version: 15,
+    name: "simulacion_escenario_link_v15",
+    statements: simulacionEscenarioLinkV15Statements,
   },
 ];

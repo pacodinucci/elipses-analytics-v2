@@ -1,7 +1,11 @@
+// src/electron/modules/scenarios/application/scenarioService.ts
 import type { Escenario, TipoEscenario } from "../../../backend/models.js";
 import { databaseService } from "../../../shared/db/index.js";
 import { migrations } from "../../../shared/db/migrations.js";
-import type { CreateEscenarioInput, CreateTipoEscenarioInput } from "../domain/scenario.js";
+import type {
+  CreateEscenarioInput,
+  CreateTipoEscenarioInput,
+} from "../domain/scenario.js";
 import {
   validateCreateEscenarioInput,
   validateCreateTipoEscenarioInput,
@@ -12,7 +16,9 @@ export class ScenarioService {
   private readonly repository = new ScenarioRepository();
   private schemaReady = false;
 
-  async createTipoEscenario(input: CreateTipoEscenarioInput): Promise<TipoEscenario> {
+  async createTipoEscenario(
+    input: CreateTipoEscenarioInput,
+  ): Promise<TipoEscenario> {
     validateCreateTipoEscenarioInput(input);
     await this.ensureSchema();
     return this.repository.createTipoEscenario(input);

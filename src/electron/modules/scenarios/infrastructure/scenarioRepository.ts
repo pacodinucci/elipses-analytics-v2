@@ -1,3 +1,4 @@
+// src/electron/modules/scenarios/infrastructure/scenarioRepository.ts
 import type { Escenario, TipoEscenario } from "../../../backend/models.js";
 import { databaseService } from "../../../shared/db/index.js";
 import type {

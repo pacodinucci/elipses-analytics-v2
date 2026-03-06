@@ -1,4 +1,3 @@
-// src/electron/backend/models.ts
 export type ID = string;
 
 export type ExtrasJson = Record<string, unknown>;
@@ -10,27 +9,16 @@ export interface Proyecto {
   limitesTemporalDesde: string;
   limitesTemporalHasta: string;
 
-  /**
-   * ✅ Ahora nullable:
-   * Se calcula luego de cargar pozos (min/max x/y + margen).
-   */
   arealMinX: number | null;
   arealMinY: number | null;
   arealMaxX: number | null;
   arealMaxY: number | null;
 
-  /**
-   * ✅ CRS puede ser definido al crear o luego (si preferís).
-   * Si querés forzarlo siempre, lo validamos en domain.
-   */
   arealCRS: string | null;
 
   grillaNx: number;
   grillaNy: number;
 
-  /**
-   * ✅ Depende de areal. Nullable hasta que haya areal.
-   */
   grillaCellSizeX: number | null;
   grillaCellSizeY: number | null;
 
@@ -42,9 +30,6 @@ export interface Proyecto {
   extrasJson?: ExtrasJson;
 }
 
-/**
- * Unidades es una entidad del proyecto.
- */
 export interface Unidades {
   id: ID;
   proyectoId: ID;
@@ -142,13 +127,8 @@ export interface TipoEstadoPozo {
 
 export interface SetEstadoPozos {
   id: ID;
-
-  // ✅ existe en schema inicial
   proyectoId: ID;
-
-  // ✅ v4 lo agrega nullable
   simulacionId: ID | null;
-
   nombre: string;
   createdAt: string;
   updatedAt: string;
@@ -189,7 +169,7 @@ export interface ValorEscenario {
   id: ID;
   escenarioId: ID;
   pozoId: ID;
-  capaId: ID;
+  capaId: ID | null;
   fecha: string;
 
   petroleo: number | null;
@@ -211,15 +191,10 @@ export interface ElipseVariable {
   extrasJson?: ExtrasJson;
 }
 
-/**
- * ✅ v7: Elipse por simulación (geometría depende de simulacionId)
- */
 export interface Elipse {
   id: ID;
   proyectoId: ID;
-
   simulacionId: ID | null;
-
   capaId: ID;
   pozoInyectorId: ID | null;
   pozoProductorId: ID | null;
@@ -231,9 +206,6 @@ export interface Elipse {
   extrasJson?: ExtrasJson;
 }
 
-/**
- * ✅ v7: valores dependen de una elipse (simulación implícita)
- */
 export interface ElipseValor {
   id: ID;
   elipseId: ID;
@@ -249,19 +221,23 @@ export interface Simulacion {
   id: ID;
   proyectoId: ID;
   tipoSimulacionId: ID;
-  escenarioSimulacionId: ID;
-
-  setEstadoPozosId: ID;
-
+  nombre: string;
   createdAt: string;
   updatedAt: string;
 
   extrasJson?: ExtrasJson;
 }
 
-/**
- * Legacy
- */
+export interface SimulacionEscenario {
+  id: ID;
+  simulacionId: ID;
+  escenarioId: ID;
+  createdAt: string;
+  updatedAt: string;
+
+  extrasJson?: ExtrasJson;
+}
+
 export interface Produccion {
   id: number;
   proyectoId: ID;

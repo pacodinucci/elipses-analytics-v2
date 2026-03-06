@@ -1,4 +1,3 @@
-// src/electron/modules/well-states/infrastructure/wellStatesRepository.ts
 import type {
   SetEstadoPozos,
   SetEstadoPozosDetalle,

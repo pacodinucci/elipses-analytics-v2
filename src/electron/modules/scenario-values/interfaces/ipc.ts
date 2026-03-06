@@ -1,3 +1,4 @@
+// src/electron/modules/scenario-values/interfaces/ipc.ts
 import { ipcMain } from "electron";
 import { validateEventFrame } from "../../../util.js";
 import { scenarioValueService } from "../application/scenarioValueService.js";

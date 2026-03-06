@@ -1,9 +1,13 @@
-// src/electron/modules/simulations/infrastructure/simulationRepository.ts
-import type { Simulacion, TipoSimulacion } from "../../../backend/models.js";
+import type {
+  Simulacion,
+  SimulacionEscenario,
+  TipoSimulacion,
+} from "../../../backend/models.js";
 import { databaseService } from "../../../shared/db/index.js";
 import type {
   CreateSimulacionInput,
   CreateTipoSimulacionInput,
+  LinkSimulacionEscenarioInput,
 } from "../domain/simulation.js";
 
 function rowToSimulationType(row: Record<string, unknown>): TipoSimulacion {
@@ -18,10 +22,29 @@ function rowToSimulation(row: Record<string, unknown>): Simulacion {
     id: String(row.id),
     proyectoId: String(row.proyectoId),
     tipoSimulacionId: String(row.tipoSimulacionId),
-    escenarioSimulacionId: String(row.escenarioSimulacionId),
-    setEstadoPozosId: String(row.setEstadoPozosId),
+    nombre: String(row.nombre),
     createdAt: String(row.createdAt),
     updatedAt: String(row.updatedAt),
+    extrasJson:
+      row.extrasJson && typeof row.extrasJson === "object"
+        ? (row.extrasJson as Record<string, unknown>)
+        : undefined,
+  };
+}
+
+function rowToSimulationScenarioLink(
+  row: Record<string, unknown>,
+): SimulacionEscenario {
+  return {
+    id: String(row.id),
+    simulacionId: String(row.simulacionId),
+    escenarioId: String(row.escenarioId),
+    createdAt: String(row.createdAt),
+    updatedAt: String(row.updatedAt),
+    extrasJson:
+      row.extrasJson && typeof row.extrasJson === "object"
+        ? (row.extrasJson as Record<string, unknown>)
+        : undefined,
   };
 }
 
@@ -55,21 +78,20 @@ export class SimulationRepository {
 
     await databaseService.run(
       `INSERT INTO Simulacion (
-        id, proyectoId, tipoSimulacionId, escenarioSimulacionId, setEstadoPozosId, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        id, proyectoId, tipoSimulacionId, nombre, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?)`,
       [
         input.id,
         input.proyectoId,
         input.tipoSimulacionId,
-        input.escenarioSimulacionId,
-        input.setEstadoPozosId,
+        input.nombre,
         now,
         now,
       ],
     );
 
     const rows = await databaseService.readAll(
-      `SELECT id, proyectoId, tipoSimulacionId, escenarioSimulacionId, setEstadoPozosId, createdAt, updatedAt
+      `SELECT id, proyectoId, tipoSimulacionId, nombre, createdAt, updatedAt, extrasJson
        FROM Simulacion
        WHERE id = ?
        LIMIT 1`,
@@ -82,7 +104,7 @@ export class SimulationRepository {
 
   async listSimulacionesByProyecto(proyectoId: string): Promise<Simulacion[]> {
     const rows = await databaseService.readAll(
-      `SELECT id, proyectoId, tipoSimulacionId, escenarioSimulacionId, setEstadoPozosId, createdAt, updatedAt
+      `SELECT id, proyectoId, tipoSimulacionId, nombre, createdAt, updatedAt, extrasJson
        FROM Simulacion
        WHERE proyectoId = ?
        ORDER BY createdAt DESC`,
@@ -90,5 +112,60 @@ export class SimulationRepository {
     );
 
     return rows.map(rowToSimulation);
+  }
+
+  async getSimulacionById(simulacionId: string): Promise<Simulacion | null> {
+    const rows = await databaseService.readAll(
+      `SELECT id, proyectoId, tipoSimulacionId, nombre, createdAt, updatedAt, extrasJson
+       FROM Simulacion
+       WHERE id = ?
+       LIMIT 1`,
+      [simulacionId],
+    );
+
+    if (rows.length === 0) return null;
+    return rowToSimulation(rows[0]);
+  }
+
+  async getSimulacionEscenarioBySimulacionId(
+    simulacionId: string,
+  ): Promise<SimulacionEscenario | null> {
+    const rows = await databaseService.readAll(
+      `SELECT id, simulacionId, escenarioId, createdAt, updatedAt, extrasJson
+       FROM SimulacionEscenario
+       WHERE simulacionId = ?
+       LIMIT 1`,
+      [simulacionId],
+    );
+
+    if (rows.length === 0) return null;
+    return rowToSimulationScenarioLink(rows[0]);
+  }
+
+  async linkSimulacionEscenario(
+    input: LinkSimulacionEscenarioInput,
+  ): Promise<SimulacionEscenario> {
+    const now = new Date().toISOString();
+
+    await databaseService.run(
+      `INSERT INTO SimulacionEscenario (
+        id, simulacionId, escenarioId, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?)`,
+      [input.id, input.simulacionId, input.escenarioId, now, now],
+    );
+
+    const rows = await databaseService.readAll(
+      `SELECT id, simulacionId, escenarioId, createdAt, updatedAt, extrasJson
+       FROM SimulacionEscenario
+       WHERE id = ?
+       LIMIT 1`,
+      [input.id],
+    );
+
+    if (rows.length === 0) {
+      throw new Error("SimulacionEscenario link failed");
+    }
+
+    return rowToSimulationScenarioLink(rows[0]);
   }
 }

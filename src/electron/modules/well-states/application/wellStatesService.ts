@@ -42,9 +42,6 @@ export class WellStatesService {
     return this.repository.createSetEstadoPozos(input);
   }
 
-  /**
-   * ✅ Se mantiene por compatibilidad: internamente el repo deriva proyectoId vía JOIN con Simulacion.
-   */
   async listSetsEstadoPozosByProject(
     proyectoId: string,
   ): Promise<SetEstadoPozos[]> {

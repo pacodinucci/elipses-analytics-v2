@@ -1,4 +1,3 @@
-// src/electron/preload.cts
 import electron from "electron";
 
 import type {
@@ -15,6 +14,7 @@ import type {
 import type {
   ImportJobResult,
   PozoTxtImportPayload,
+  ScenarioTxtImportPayload,
 } from "./modules/imports/domain/importJob.js";
 
 // runtime-only
@@ -126,6 +126,19 @@ electron.contextBridge.exposeInMainWorld("electron", {
   importCapasCommit: (payload: unknown) =>
     electron.ipcRenderer.invoke("importCapasCommit", payload),
 
+  // ✅ NUEVO: Escenarios (TXT)
+  importEscenariosDryRun: (payload: ScenarioTxtImportPayload) =>
+    electron.ipcRenderer.invoke(
+      "importEscenariosDryRun",
+      payload,
+    ) as Promise<ImportJobResult>,
+
+  importEscenariosCommit: (payload: ScenarioTxtImportPayload) =>
+    electron.ipcRenderer.invoke(
+      "importEscenariosCommit",
+      payload,
+    ) as Promise<ImportJobResult>,
+
   productionCreate: (payload: unknown) =>
     electron.ipcRenderer.invoke("productionCreate", payload),
   productionListByProject: (payload: unknown) =>
@@ -223,7 +236,7 @@ electron.contextBridge.exposeInMainWorld("electron", {
   corePozoCapaListByProject: (payload: unknown) =>
     electron.ipcRenderer.invoke("corePozoCapaListByProject", payload),
 
-  // ✅ Imports: Pozos (TIPADO) — ahora es TXT
+  // ✅ Imports: Pozos (TXT)
   importPozosDryRun: (payload: PozoTxtImportPayload) =>
     electron.ipcRenderer.invoke(
       "importPozosDryRun",
