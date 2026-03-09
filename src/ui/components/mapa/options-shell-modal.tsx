@@ -61,7 +61,6 @@ export type OptionsShellModalProps<K extends string> = {
   heightClassName?: string;
   sidebarWidthClassName?: string;
 
-  // ✅ v2: aceptar string o JSX
   panelTitle?: React.ReactNode;
   panelSubtitle?: React.ReactNode;
   children: React.ReactNode;
@@ -90,7 +89,6 @@ export function OptionsShellModal<K extends string>({
   headerRight,
   footer,
 }: OptionsShellModalProps<K>) {
-  // ✅ ESC para cerrar
   useEffect(() => {
     if (!isOpen) return;
 
@@ -104,7 +102,6 @@ export function OptionsShellModal<K extends string>({
 
   if (!isOpen) return null;
 
-  // ✅ click afuera para cerrar
   const onOverlayMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (e.target === e.currentTarget) onClose();
   };

@@ -1,6 +1,6 @@
 /* src/components/mapa/options-shell-modal.css */
 .osm__overlay {
-  position: fixed;
+  position: absolute;
   inset: 0;
   z-index: 50000;
   display: flex;
@@ -21,11 +21,31 @@
 
 .osm__wDefault {
   width: 980px;
-  max-width: 96vw;
+  max-width: calc(100% - 32px);
 }
+
 .osm__hDefault {
   height: 720px;
-  max-height: 90vh;
+  max-height: calc(100% - 32px);
+}
+
+.osm__overlay:has(.osm__wFull),
+.osm__overlay:has(.osm__hFull) {
+  padding: 0;
+}
+
+.osm__wFull {
+  width: 100%;
+  max-width: 100%;
+}
+
+.osm__hFull {
+  height: 100%;
+  max-height: 100%;
+}
+
+.osm__modal.osm__wFull.osm__hFull {
+  border-radius: 0;
 }
 
 .osm__frame {
@@ -85,17 +105,6 @@
   color: rgba(15, 23, 42, 0.92);
 }
 
-/* .osm__closeBtn {
-  background: transparent;
-  color: rgba(15, 23, 42, 0.6);
-  font-size: 18px;
-}
-
-.osm_closeBtn:hover {
-  background: rgba(15, 23, 42, 0.06);
-  border: none;
-} */
-
 .osm__closeBtn svg {
   width: 18px;
   height: 18px;
@@ -113,6 +122,10 @@
 
 .osm__gridDefault {
   grid-template-columns: 280px 1fr;
+}
+
+.osm__gridFull {
+  grid-template-columns: 320px minmax(0, 1fr);
 }
 
 .osm__sidebar {
@@ -136,7 +149,6 @@
   gap: 8px;
 }
 
-/* Nav card (como tu imagen) */
 .osm__navItem {
   width: 100%;
   text-align: left;

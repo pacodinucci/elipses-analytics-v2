@@ -1,3 +1,5 @@
+// src/electron/shared/db/migrations.ts
+
 export interface Migration {
   version: number;
   name: string;

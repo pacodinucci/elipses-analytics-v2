@@ -1,3 +1,4 @@
+// src/electron/modules/imports/application/importService.ts
 import { randomUUID } from "node:crypto";
 import { migrations } from "../../../shared/db/migrations.js";
 import { databaseService } from "../../../shared/db/index.js";
@@ -50,8 +51,52 @@ function parseNullableNumber(raw: string | undefined): number | null {
 
 function isValidISODate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
   const d = new Date(`${value}T00:00:00Z`);
-  return !Number.isNaN(d.getTime());
+  if (Number.isNaN(d.getTime())) return false;
+
+  const [yyyy, mm, dd] = value.split("-").map(Number);
+  return (
+    d.getUTCFullYear() === yyyy &&
+    d.getUTCMonth() + 1 === mm &&
+    d.getUTCDate() === dd
+  );
+}
+
+function normalizeScenarioDate(raw: string): string | null {
+  const value = (raw ?? "").trim();
+  if (!value) return null;
+
+  // YYYY-MM-DD
+  if (isValidISODate(value)) {
+    return value;
+  }
+
+  // YYYY-MM
+  const isoMonthMatch = value.match(/^(\d{4})-(\d{1,2})$/);
+  if (isoMonthMatch) {
+    const year = Number(isoMonthMatch[1]);
+    const month = Number(isoMonthMatch[2]);
+
+    if (month >= 1 && month <= 12) {
+      const normalized = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-01`;
+      return isValidISODate(normalized) ? normalized : null;
+    }
+  }
+
+  // MM-YYYY o M-YYYY
+  const monthYearMatch = value.match(/^(\d{1,2})-(\d{4})$/);
+  if (monthYearMatch) {
+    const month = Number(monthYearMatch[1]);
+    const year = Number(monthYearMatch[2]);
+
+    if (month >= 1 && month <= 12) {
+      const normalized = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-01`;
+      return isValidISODate(normalized) ? normalized : null;
+    }
+  }
+
+  return null;
 }
 
 function normalizeScenarioHeader(raw: string): string {
@@ -63,13 +108,19 @@ function normalizeScenarioHeader(raw: string): string {
   if (["petroleo", "oil"].includes(key)) return "petroleo";
   if (["agua", "water"].includes(key)) return "agua";
   if (["gas"].includes(key)) return "gas";
+
   if (
-    ["inyeccionagua", "agua_iny", "agua_inyectada", "inyeccion_agua"].includes(
-      key,
-    )
+    [
+      "inyeccionagua",
+      "agua_iny",
+      "agua_inyectada",
+      "inyeccion_agua",
+      "agua_inv",
+    ].includes(key)
   ) {
     return "inyeccionAgua";
   }
+
   if (["inyecciongas", "gas_iny", "inyeccion_gas"].includes(key)) {
     return "inyeccionGas";
   }
@@ -81,7 +132,7 @@ type ParsedScenarioRow = {
   rowNumber: number;
   pozo: string;
   capa: string | null;
-  fecha: string;
+  fechaRaw: string;
   petroleo: number | null;
   agua: number | null;
   gas: number | null;
@@ -125,7 +176,7 @@ function parseScenarioTxtContent(content: string): ParsedScenarioRow[] {
       rowNumber,
       pozo: (data.pozo ?? "").trim(),
       capa: (data.capa ?? "").trim() || null,
-      fecha: (data.fecha ?? "").trim(),
+      fechaRaw: (data.fecha ?? "").trim(),
       petroleo: parseNullableNumber(data.petroleo),
       agua: parseNullableNumber(data.agua),
       gas: parseNullableNumber(data.gas),
@@ -162,19 +213,19 @@ function validateScenarioRowByType(
     });
   }
 
-  if (!row.fecha) {
+  if (!row.fechaRaw) {
     errors.push({
       rowNumber: row.rowNumber,
       field: "fecha",
       severity: "error",
       message: "fecha is required",
     });
-  } else if (!isValidISODate(row.fecha)) {
+  } else if (!normalizeScenarioDate(row.fechaRaw)) {
     errors.push({
       rowNumber: row.rowNumber,
       field: "fecha",
       severity: "error",
-      message: "fecha must be YYYY-MM-DD",
+      message: "fecha must be YYYY-MM-DD, YYYY-MM or MM-YYYY",
     });
   }
 
@@ -187,26 +238,22 @@ function validateScenarioRowByType(
     });
   }
 
-  if (tipoEscenarioId === "historia") {
-    if (row.capa) {
-      errors.push({
-        rowNumber: row.rowNumber,
-        field: "capa",
-        severity: "error",
-        message: 'tipo "historia" no admite capa',
-      });
-    }
+  if (tipoEscenarioId === "historia" && row.capa) {
+    errors.push({
+      rowNumber: row.rowNumber,
+      field: "capa",
+      severity: "error",
+      message: 'tipo "historia" no admite capa',
+    });
   }
 
-  if (tipoEscenarioId === "datos") {
-    if (!row.capa) {
-      errors.push({
-        rowNumber: row.rowNumber,
-        field: "capa",
-        severity: "error",
-        message: 'tipo "datos" requiere capa',
-      });
-    }
+  if (tipoEscenarioId === "datos" && !row.capa) {
+    errors.push({
+      rowNumber: row.rowNumber,
+      field: "capa",
+      severity: "error",
+      message: 'tipo "datos" requiere capa',
+    });
   }
 
   return errors;
@@ -921,6 +968,8 @@ export class ImportService {
       let pozoId: string | null = null;
       let capaId: string | null = null;
 
+      const normalizedFecha = normalizeScenarioDate(row.fechaRaw);
+
       if (row.pozo) {
         pozoId = pozoByName.get(normalizeKey(row.pozo)) ?? null;
         if (!pozoId) {
@@ -949,11 +998,20 @@ export class ImportService {
         capaId = null;
       }
 
-      if (rowErrors.length === 0 && pozoId) {
+      if (!normalizedFecha) {
+        rowErrors.push({
+          rowNumber: row.rowNumber,
+          field: "fecha",
+          severity: "error",
+          message: `Fecha inválida: ${row.fechaRaw}`,
+        });
+      }
+
+      if (rowErrors.length === 0 && pozoId && normalizedFecha) {
         const logicalKey = buildScenarioLogicalKey(
           payload.tipoEscenarioId,
           pozoId,
-          row.fecha,
+          normalizedFecha,
           capaId,
         );
 
@@ -979,7 +1037,7 @@ export class ImportService {
         rowNumber: row.rowNumber,
         pozoId: pozoId as string,
         capaId,
-        fecha: row.fecha,
+        fecha: normalizedFecha as string,
         petroleo: row.petroleo,
         agua: row.agua,
         gas: row.gas,

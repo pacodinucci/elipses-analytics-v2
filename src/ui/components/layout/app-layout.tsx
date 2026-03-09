@@ -1,5 +1,5 @@
 // src/components/layout/app-layout.tsx
-import type { PropsWithChildren } from "react";
+import type { PropsWithChildren, ReactNode } from "react";
 
 import { MenuBar } from "../menu/menu-bar";
 import { BreadcrumbBar } from "./breadcrumb-bar";
@@ -27,6 +27,8 @@ type AppLayoutProps = PropsWithChildren<{
 
   capasBarPosition: CapasBarPosition;
   onChangeCapasBarPosition: (pos: CapasBarPosition) => void;
+
+  contentOverlay?: ReactNode;
 }>;
 
 export default function AppLayout({
@@ -49,27 +51,39 @@ export default function AppLayout({
 
   capasBarPosition,
   onChangeCapasBarPosition,
+
+  contentOverlay,
 }: AppLayoutProps) {
   return (
     <div className="appLayout">
-      <MenuBar
-        onAbrirProyecto={onAbrirProyecto}
-        onOpenImportar={onOpenImportar}
-        showWindowMapa={isMapaWindowOpen}
-        showWindowTabla={isProduccionWindowOpen}
-        showWindowDatosMapa={isDatosMapaWindowOpen}
-        onToggleMapaWindow={onToggleMapaWindow}
-        onToggleTablaWindow={onToggleProduccionWindow}
-        onToggleDatosMapaWindow={onToggleDatosMapaWindow}
-        showCapasBar={isCapasBarOpen}
-        onToggleCapasBar={onToggleCapasBar}
-        capasBarPosition={capasBarPosition}
-        onChangeCapasBarPosition={onChangeCapasBarPosition}
-      />
+      <div className="appLayout__topbar">
+        <MenuBar
+          onAbrirProyecto={onAbrirProyecto}
+          onOpenImportar={onOpenImportar}
+          showWindowMapa={isMapaWindowOpen}
+          showWindowTabla={isProduccionWindowOpen}
+          showWindowDatosMapa={isDatosMapaWindowOpen}
+          onToggleMapaWindow={onToggleMapaWindow}
+          onToggleTablaWindow={onToggleProduccionWindow}
+          onToggleDatosMapaWindow={onToggleDatosMapaWindow}
+          showCapasBar={isCapasBarOpen}
+          onToggleCapasBar={onToggleCapasBar}
+          capasBarPosition={capasBarPosition}
+          onChangeCapasBarPosition={onChangeCapasBarPosition}
+        />
+      </div>
 
-      <BreadcrumbBar selectedProyecto={selectedProyecto} />
+      <div className="appLayout__breadcrumb">
+        <BreadcrumbBar selectedProyecto={selectedProyecto} />
+      </div>
 
-      <main className="appLayout__content">{children}</main>
+      <main className="appLayout__content">
+        <div className="appLayout__contentInner">{children}</div>
+
+        {contentOverlay ? (
+          <div className="appLayout__contentOverlay">{contentOverlay}</div>
+        ) : null}
+      </main>
     </div>
   );
 }

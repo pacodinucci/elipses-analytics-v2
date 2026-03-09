@@ -1,3 +1,4 @@
+// src/electron/modules/scenario-values/application/scenarioValueService.ts
 import type { ValorEscenario } from "../../../backend/models.js";
 import { databaseService } from "../../../shared/db/index.js";
 import { migrations } from "../../../shared/db/migrations.js";
@@ -12,6 +13,20 @@ function hasAnyNonNull(values: Array<number | null | undefined>): boolean {
 
 function normalizeTipoId(id: string): string {
   return id.trim().toLowerCase();
+}
+
+function isValidISODate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+  const d = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return false;
+
+  const [yyyy, mm, dd] = value.split("-").map(Number);
+  return (
+    d.getUTCFullYear() === yyyy &&
+    d.getUTCMonth() + 1 === mm &&
+    d.getUTCDate() === dd
+  );
 }
 
 export class ScenarioValueService {
@@ -58,6 +73,12 @@ export class ScenarioValueService {
     if (!tipo) {
       throw new Error(
         `TipoEscenario no existe: tipoEscenarioId=${escenario.tipoEscenarioId}`,
+      );
+    }
+
+    if (!input.fecha || !isValidISODate(input.fecha)) {
+      throw new Error(
+        `ValorEscenario inválido: fecha debe estar normalizada como YYYY-MM-DD.`,
       );
     }
 

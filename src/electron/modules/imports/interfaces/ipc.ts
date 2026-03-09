@@ -1,3 +1,4 @@
+// src/electron/modules/imports/interface/ipc.ts
 import { ipcMain } from "electron";
 import { validateEventFrame } from "../../../util.js";
 import { importService } from "../application/importService.js";

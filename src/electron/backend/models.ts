@@ -1,3 +1,4 @@
+// src/electron/backend/models.ts
 export type ID = string;
 
 export type ExtrasJson = Record<string, unknown>;

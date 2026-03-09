@@ -1,3 +1,4 @@
+// src/electron/modules/imports/domain/importJob.ts
 export type ImportSeverity = "error" | "warning";
 
 export interface ImportJobError {

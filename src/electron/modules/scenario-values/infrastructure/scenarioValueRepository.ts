@@ -1,3 +1,4 @@
+// scr/electron/modules/scenario-values/infrastructure/scenarioValueRepository.ts
 import type { ValorEscenario } from "../../../backend/models.js";
 import { databaseService } from "../../../shared/db/index.js";
 import type { CreateValorEscenarioInput } from "../domain/scenarioValue.js";

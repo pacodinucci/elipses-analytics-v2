@@ -1,3 +1,4 @@
+// src/electron/modules/scenario-values/domain/scenarioValue.ts
 export interface CreateValorEscenarioInput {
   id: string;
   escenarioId: string;

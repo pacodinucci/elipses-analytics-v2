@@ -1,4 +1,3 @@
-// src/components/import/import-modal.tsx
 import React, { useEffect, useMemo, useState } from "react";
 import {
   OptionsShellModal,
@@ -10,22 +9,45 @@ import "./import-modal.css";
 import { useSelectionStore } from "../../store/selection-store";
 import { invalidateCapasCache } from "../../hooks/use-capas";
 
-// ✅ Reusamos el mismo store del wizard para parse/mapping/selección/virtualización
 import { useNewProjectWizardStore } from "../../store/new-project-wizard-store";
 
-// ✅ Helpers (src/ui/lib)
 import {
   buildResolverIndex,
+  resolveNameToId,
   resolvePozoCapaRows,
   type NameEntity,
   type PozoCapaResolveReport,
 } from "../../lib/name-resolver";
 
-type TabKey = "capas" | "pozoCapa" | "maps" | "database" | "help";
-type ImportKind = "capas" | "pozoCapa" | "maps";
+type TabKey =
+  | "capas"
+  | "pozoCapa"
+  | "escenarios"
+  | "maps"
+  | "database"
+  | "help";
 
-// v2: resultado genérico (no acoplamos types del backend todavía)
+type ImportKind = "capas" | "pozoCapa" | "escenarios" | "maps";
+
 type ImportJobResultUI = any;
+
+type ImportProgressPhase =
+  | "idle"
+  | "preparing"
+  | "validating"
+  | "dry-run"
+  | "committing"
+  | "done"
+  | "error";
+
+type ImportProgress = {
+  visible: boolean;
+  kind: ImportKind;
+  phase: ImportProgressPhase;
+  current: number;
+  total: number;
+  message: string;
+};
 
 const POZOCAPA_FIELDS = [
   { key: "pozo", label: "Pozo" },
@@ -34,28 +56,220 @@ const POZOCAPA_FIELDS = [
   { key: "base", label: "Base" },
 ] as const;
 
-type PozoCapaViewMode = "all" | "unresolved";
+const SCENARIO_TYPE_OPTIONS = [
+  { id: "historia", nombre: "Historia" },
+  { id: "datos", nombre: "Datos" },
+  { id: "primaria", nombre: "Primaria" },
+  { id: "inyeccion", nombre: "Inyección" },
+] as const;
 
-/**
- * invalidCells:
- * key = `${rowIndex}:${colIndex}` (rowIndex real en importState.rows, colIndex real en cells[])
- * value = "missing" | "ambiguous"
- */
+type PozoCapaViewMode = "all" | "unresolved";
+type ScenarioViewMode = "all" | "unresolved";
+
 type InvalidCellsMap = Record<string, "missing" | "ambiguous">;
+
+type ScenarioResolvedRow = {
+  rowIndex: number;
+  rowNumber: number;
+  pozoId: string;
+  capaId: string | null;
+  fecha: string;
+  petroleo: number | null;
+  agua: number | null;
+  gas: number | null;
+  inyeccionGas: number | null;
+  inyeccionAgua: number | null;
+};
+
+type ScenarioResolveReport = {
+  ok: boolean;
+  totalSelected: number;
+  resolved: number;
+
+  missingPozos: Array<{
+    rowIndex: number;
+    rowNumber: number;
+    pozoName: string;
+  }>;
+  missingCapas: Array<{
+    rowIndex: number;
+    rowNumber: number;
+    capaName: string;
+  }>;
+  ambiguousPozos: Array<{
+    rowIndex: number;
+    rowNumber: number;
+    pozoName: string;
+    candidates: string[];
+  }>;
+  ambiguousCapas: Array<{
+    rowIndex: number;
+    rowNumber: number;
+    capaName: string;
+    candidates: string[];
+  }>;
+  invalidFechas: Array<{
+    rowIndex: number;
+    rowNumber: number;
+    fecha: string;
+  }>;
+  missingMetrics: Array<{
+    rowIndex: number;
+    rowNumber: number;
+  }>;
+  duplicateLogicalRows: Array<{
+    rowIndex: number;
+    rowNumber: number;
+  }>;
+
+  unresolvedRowIndices: number[];
+  rows: ScenarioResolvedRow[];
+};
 
 export type ImportModalProps = {
   isOpen: boolean;
   onClose: () => void;
 };
 
+function scenarioFieldOptionsForType(tipoEscenarioId: string) {
+  const base = [
+    { key: "pozo", label: "Pozo" },
+    { key: "fecha", label: "Fecha" },
+    { key: "petroleo", label: "Petróleo" },
+    { key: "agua", label: "Agua" },
+    { key: "gas", label: "Gas" },
+    { key: "inyeccionGas", label: "Inyección Gas" },
+    { key: "inyeccionAgua", label: "Inyección Agua" },
+  ];
+
+  if (tipoEscenarioId === "datos") {
+    return [{ key: "capa", label: "Capa" }, ...base];
+  }
+
+  return base;
+}
+
+function parseNullableMetric(raw: string): number | null {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  const n = Number(s.replace(",", "."));
+  return Number.isFinite(n) ? n : null;
+}
+
+function isValidISODate(value: string): boolean {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+
+  const d = new Date(`${value}T00:00:00Z`);
+  if (Number.isNaN(d.getTime())) return false;
+
+  const [yyyy, mm, dd] = value.split("-").map(Number);
+  return (
+    d.getUTCFullYear() === yyyy &&
+    d.getUTCMonth() + 1 === mm &&
+    d.getUTCDate() === dd
+  );
+}
+
+function normalizeScenarioDate(raw: string): string | null {
+  const value = String(raw ?? "").trim();
+  if (!value) return null;
+
+  if (isValidISODate(value)) {
+    return value;
+  }
+
+  const isoMonthMatch = value.match(/^(\d{4})-(\d{1,2})$/);
+  if (isoMonthMatch) {
+    const year = Number(isoMonthMatch[1]);
+    const month = Number(isoMonthMatch[2]);
+
+    if (month >= 1 && month <= 12) {
+      const normalized = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-01`;
+      return isValidISODate(normalized) ? normalized : null;
+    }
+  }
+
+  const monthYearMatch = value.match(/^(\d{1,2})-(\d{4})$/);
+  if (monthYearMatch) {
+    const month = Number(monthYearMatch[1]);
+    const year = Number(monthYearMatch[2]);
+
+    if (month >= 1 && month <= 12) {
+      const normalized = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-01`;
+      return isValidISODate(normalized) ? normalized : null;
+    }
+  }
+
+  return null;
+}
+
+function buildScenarioLogicalKey(
+  tipoEscenarioId: string,
+  pozoId: string,
+  fecha: string,
+  capaId: string | null,
+): string {
+  if (tipoEscenarioId === "historia") {
+    return `${pozoId}::__NO_CAPA__::${fecha}`;
+  }
+  return `${pozoId}::${capaId ?? "__NO_CAPA__"}::${fecha}`;
+}
+
+function groupRowsByLabel<T extends { rowIndex: number }>(
+  items: T[],
+  getLabel: (item: T) => string,
+): Array<{ label: string; rowIndices: number[]; count: number }> {
+  const map = new Map<string, Set<number>>();
+
+  for (const item of items) {
+    const label = getLabel(item).trim() || "(vacío)";
+    if (!map.has(label)) map.set(label, new Set<number>());
+    map.get(label)!.add(item.rowIndex);
+  }
+
+  return Array.from(map.entries())
+    .map(([label, indices]) => ({
+      label,
+      rowIndices: Array.from(indices.values()).sort((a, b) => a - b),
+      count: indices.size,
+    }))
+    .sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
+}
+
+function buildInitialProgress(kind: ImportKind): ImportProgress {
+  return {
+    visible: true,
+    kind,
+    phase: "preparing",
+    current: 0,
+    total: 0,
+    message: "Preparando importación...",
+  };
+}
+
+function getProgressPercent(progress: ImportProgress | null): number {
+  if (!progress || !progress.visible) return 0;
+  if (progress.total <= 0) {
+    if (progress.phase === "done") return 100;
+    return 100;
+  }
+  return Math.max(
+    0,
+    Math.min(100, Math.round((progress.current / progress.total) * 100)),
+  );
+}
+
 export function ImportModal({ isOpen, onClose }: ImportModalProps) {
   const proyectoId = useSelectionStore((s) => s.selectedProyectoId);
 
-  // ✅ store (reutilizamos estados y acciones de import tabular)
   const {
     pozoCapaFile,
     setPozoCapaFile,
     pozoCapaImport,
+
+    scenarioFile,
+    setScenarioFile,
+    scenarioImport,
 
     setImportFromContent,
     setImportMapping,
@@ -67,6 +281,7 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
     setImportAllColsSelected,
 
     validateImport,
+    buildContentForCommit,
     clearImport,
   } = useNewProjectWizardStore();
 
@@ -81,6 +296,12 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
       {
         key: "pozoCapa",
         title: "Pozo-Capa",
+        subtitle: "Import TXT (tabla)",
+        icon: <TbFileImport />,
+      },
+      {
+        key: "escenarios",
+        title: "Escenarios",
         subtitle: "Import TXT (tabla)",
         icon: <TbFileImport />,
       },
@@ -108,28 +329,75 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
 
   const [activeKey, setActiveKey] = useState<TabKey>("capas");
 
-  // Inputs (capas/maps quedan como estaban)
   const [capasTxt, setCapasTxt] = useState<string>("");
   const [mapsJson, setMapsJson] = useState<string>("");
 
-  // UI state
+  const [scenarioTipoEscenarioId, setScenarioTipoEscenarioId] =
+    useState<string>("datos");
+  const [scenarioNombre, setScenarioNombre] = useState<string>("");
+
   const [isRunning, setIsRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Results
   const [lastKind, setLastKind] = useState<ImportKind>("capas");
   const [lastDryRun, setLastDryRun] = useState<ImportJobResultUI | null>(null);
   const [lastCommit, setLastCommit] = useState<ImportJobResultUI | null>(null);
 
-  // ✅ Pozo-Capa resolve & view mode
   const [pozoCapaViewMode, setPozoCapaViewMode] =
     useState<PozoCapaViewMode>("all");
   const [pozoCapaReport, setPozoCapaReport] =
     useState<PozoCapaResolveReport | null>(null);
-
-  // ✅ celdas inválidas (solo Pozo/Capa missing o ambiguous)
   const [pozoCapaInvalidCells, setPozoCapaInvalidCells] =
     useState<InvalidCellsMap>({});
+
+  const [scenarioViewMode, setScenarioViewMode] =
+    useState<ScenarioViewMode>("all");
+  const [scenarioReport, setScenarioReport] =
+    useState<ScenarioResolveReport | null>(null);
+  const [scenarioInvalidCells, setScenarioInvalidCells] =
+    useState<InvalidCellsMap>({});
+
+  const [progress, setProgress] = useState<ImportProgress | null>(null);
+
+  const resetScenarioResolutionState = () => {
+    setScenarioReport(null);
+    setScenarioInvalidCells({});
+    setScenarioViewMode("all");
+  };
+
+  const resetProgressState = () => {
+    setProgress(null);
+  };
+
+  const updateProgress = (patch: Partial<ImportProgress>) => {
+    setProgress((prev) => {
+      const base =
+        prev ??
+        ({
+          visible: true,
+          kind,
+          phase: "preparing",
+          current: 0,
+          total: 0,
+          message: "",
+        } satisfies ImportProgress);
+
+      return {
+        ...base,
+        ...patch,
+        visible: patch.visible ?? true,
+      };
+    });
+  };
+
+  const deselectScenarioRows = (rowIndices: number[]) => {
+    const unique = Array.from(new Set(rowIndices)).sort((a, b) => a - b);
+    for (const rowIndex of unique) {
+      setImportRowSelected("Escenario", rowIndex, false);
+    }
+    resetScenarioResolutionState();
+    setError(null);
+  };
 
   useEffect(() => {
     if (!isOpen) return;
@@ -137,6 +405,9 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
     setActiveKey("capas");
     setCapasTxt("");
     setMapsJson("");
+
+    setScenarioTipoEscenarioId("datos");
+    setScenarioNombre("");
 
     setIsRunning(false);
     setError(null);
@@ -149,17 +420,22 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
     setPozoCapaReport(null);
     setPozoCapaInvalidCells({});
 
-    // resetea el tabular de pozo-capa
+    resetScenarioResolutionState();
+    resetProgressState();
+
     setPozoCapaFile(null);
     clearImport("PozoCapa");
+
+    setScenarioFile(null);
+    clearImport("Escenario");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen]);
 
-  // ✅ debounce validate para pozo-capa cuando está activo (evita UI lag)
   useEffect(() => {
     if (!isOpen) return;
     if (activeKey !== "pozoCapa") return;
     if (!pozoCapaFile) return;
+
     const t = window.setTimeout(() => validateImport("PozoCapa"), 160);
     return () => window.clearTimeout(t);
   }, [
@@ -173,23 +449,45 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
     validateImport,
   ]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+    if (activeKey !== "escenarios") return;
+    if (!scenarioFile) return;
+
+    const t = window.setTimeout(() => validateImport("Escenario"), 160);
+    return () => window.clearTimeout(t);
+  }, [
+    isOpen,
+    activeKey,
+    scenarioFile,
+    scenarioImport.selectedRows,
+    scenarioImport.selectedCols,
+    scenarioImport.mapping,
+    scenarioImport.rows,
+    validateImport,
+  ]);
+
   const kind: ImportKind =
     activeKey === "maps"
       ? "maps"
       : activeKey === "pozoCapa"
         ? "pozoCapa"
-        : "capas";
+        : activeKey === "escenarios"
+          ? "escenarios"
+          : "capas";
 
   const panelTitle =
     activeKey === "capas"
       ? "Importar Capas"
       : activeKey === "pozoCapa"
         ? "Importar Pozo-Capa"
-        : activeKey === "maps"
-          ? "Importar Maps"
-          : activeKey === "database"
-            ? "Resultado"
-            : "Ayuda y formato";
+        : activeKey === "escenarios"
+          ? "Importar Escenarios"
+          : activeKey === "maps"
+            ? "Importar Maps"
+            : activeKey === "database"
+              ? "Resultado"
+              : "Ayuda y formato";
 
   const panelSubtitle =
     activeKey === "capas" ? (
@@ -197,8 +495,12 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
     ) : activeKey === "pozoCapa" ? (
       <>
         Import TXT tabular Pozo-Capa (mapeo + selección + tabla virtualizada).
-        Dry-run valida TODAS las filas seleccionadas contra la DB (normalización
-        alfanumérica). Commit bloquea si queda algo sin resolver.
+        Dry-run valida TODAS las filas seleccionadas contra la DB.
+      </>
+    ) : activeKey === "escenarios" ? (
+      <>
+        Misma lógica que Pozo-Capa: TXT tabular, mapping, selección, validación
+        contra DB y commit sólo si todas las filas quedan resueltas.
       </>
     ) : activeKey === "maps" ? (
       <>Import de mapas por filas (pegá JSON del payload) (dry-run / commit).</>
@@ -221,17 +523,26 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
     pcMappingErrors === 0 &&
     pcRowErrors === 0;
 
+  const scMappingErrors = scenarioImport.mappingErrors?.length ?? 0;
+  const scRowErrors = Object.keys(scenarioImport.rowErrors ?? {}).length;
+
+  const canRunEscenarios =
+    !!proyectoId &&
+    !!scenarioFile &&
+    !!scenarioNombre.trim() &&
+    !isRunning &&
+    scMappingErrors === 0 &&
+    scRowErrors === 0;
+
   const canRun =
     kind === "capas"
       ? canRunCapas
       : kind === "maps"
         ? canRunMaps
-        : canRunPozoCapa;
+        : kind === "escenarios"
+          ? canRunEscenarios
+          : canRunPozoCapa;
 
-  /**
-   * ✅ compute report (valida TODAS las filas seleccionadas, no las visibles)
-   * Devolvemos también colPozo/colCapa para poder marcar la celda en rojo.
-   */
   const computePozoCapaReportWithCols = async (): Promise<{
     report: PozoCapaResolveReport;
     colPozo: number;
@@ -290,14 +601,13 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
     return { report, colPozo, colCapa };
   };
 
-  const buildInvalidCellsMap = (
+  const buildPozoCapaInvalidCellsMap = (
     report: PozoCapaResolveReport,
     colPozo: number,
     colCapa: number,
   ): InvalidCellsMap => {
     const invalid: InvalidCellsMap = {};
 
-    // ✅ SOLO Pozo/Capa (missing o ambiguous)
     for (const x of report.missingPozos ?? []) {
       invalid[`${x.rowIndex}:${colPozo}`] = "missing";
     }
@@ -314,11 +624,301 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
     return invalid;
   };
 
+  const computeScenarioReportWithCols = async (): Promise<{
+    report: ScenarioResolveReport;
+    colPozo: number;
+    colCapa: number;
+  }> => {
+    if (!proyectoId) throw new Error("No hay proyecto seleccionado.");
+
+    const okLocal = validateImport("Escenario");
+    if (!okLocal) {
+      throw new Error(
+        "Escenarios: hay errores de mapping o filas inválidas. Corregí antes de validar contra DB.",
+      );
+    }
+
+    const st = scenarioImport;
+    const effMapping = st.mapping.map((m: string, i: number) =>
+      st.selectedCols[i] ? m : "__ignore__",
+    );
+
+    const colPozo = effMapping.findIndex((m: string) => m === "pozo");
+    const colCapa = effMapping.findIndex((m: string) => m === "capa");
+    const colFecha = effMapping.findIndex((m: string) => m === "fecha");
+    const colPetroleo = effMapping.findIndex((m: string) => m === "petroleo");
+    const colAgua = effMapping.findIndex((m: string) => m === "agua");
+    const colGas = effMapping.findIndex((m: string) => m === "gas");
+    const colInyGas = effMapping.findIndex((m: string) => m === "inyeccionGas");
+    const colInyAgua = effMapping.findIndex(
+      (m: string) => m === "inyeccionAgua",
+    );
+
+    if (colPozo < 0 || colFecha < 0) {
+      throw new Error(
+        "Escenarios: mapping incompleto. Se requiere al menos pozo y fecha.",
+      );
+    }
+
+    if (
+      colPetroleo < 0 &&
+      colAgua < 0 &&
+      colGas < 0 &&
+      colInyGas < 0 &&
+      colInyAgua < 0
+    ) {
+      throw new Error(
+        "Escenarios: debés mapear al menos una métrica (petroleo/agua/gas/inyeccionGas/inyeccionAgua).",
+      );
+    }
+
+    if (scenarioTipoEscenarioId === "datos" && colCapa < 0) {
+      throw new Error(
+        'Escenarios tipo "datos": debés mapear una columna a "capa".',
+      );
+    }
+
+    if (scenarioTipoEscenarioId === "historia" && colCapa >= 0) {
+      throw new Error(
+        'Escenarios tipo "historia": la columna "capa" debe quedar ignorada.',
+      );
+    }
+
+    const [pozos, capas] = await Promise.all([
+      window.electron.corePozoListByProject({ proyectoId } as any),
+      window.electron.coreCapaListByProject({ proyectoId } as any),
+    ]);
+
+    const pozoEntities: NameEntity[] = (pozos ?? []).map((p: any) => ({
+      id: String(p.id),
+      nombre: String(p.nombre ?? ""),
+    }));
+    const capaEntities: NameEntity[] = (capas ?? []).map((c: any) => ({
+      id: String(c.id),
+      nombre: String(c.nombre ?? ""),
+    }));
+
+    const pozoIndex = buildResolverIndex(pozoEntities);
+    const capaIndex = buildResolverIndex(capaEntities);
+
+    const report: ScenarioResolveReport = {
+      ok: true,
+      totalSelected: 0,
+      resolved: 0,
+
+      missingPozos: [],
+      missingCapas: [],
+      ambiguousPozos: [],
+      ambiguousCapas: [],
+      invalidFechas: [],
+      missingMetrics: [],
+      duplicateLogicalRows: [],
+
+      unresolvedRowIndices: [],
+      rows: [],
+    };
+
+    const unresolved = new Set<number>();
+    const logicalKeys = new Set<string>();
+
+    for (let rowIndex = 0; rowIndex < st.rows.length; rowIndex += 1) {
+      if (!st.selectedRows[rowIndex]) continue;
+
+      report.totalSelected += 1;
+
+      const r = st.rows[rowIndex];
+      const pozoName = (r.cells[colPozo] ?? "").trim();
+      const capaName = colCapa >= 0 ? (r.cells[colCapa] ?? "").trim() : "";
+      const fechaRaw = (r.cells[colFecha] ?? "").trim();
+      const fecha = normalizeScenarioDate(fechaRaw);
+
+      if (!pozoName) {
+        report.ok = false;
+        unresolved.add(rowIndex);
+        report.missingPozos.push({
+          rowIndex,
+          rowNumber: r.rowNumber,
+          pozoName: "",
+        });
+        continue;
+      }
+
+      if (scenarioTipoEscenarioId === "datos" && !capaName) {
+        report.ok = false;
+        unresolved.add(rowIndex);
+        report.missingCapas.push({
+          rowIndex,
+          rowNumber: r.rowNumber,
+          capaName: "",
+        });
+        continue;
+      }
+
+      if (!fecha) {
+        report.ok = false;
+        unresolved.add(rowIndex);
+        report.invalidFechas.push({
+          rowIndex,
+          rowNumber: r.rowNumber,
+          fecha: fechaRaw,
+        });
+        continue;
+      }
+
+      const petroleo =
+        colPetroleo >= 0
+          ? parseNullableMetric(r.cells[colPetroleo] ?? "")
+          : null;
+      const agua =
+        colAgua >= 0 ? parseNullableMetric(r.cells[colAgua] ?? "") : null;
+      const gas =
+        colGas >= 0 ? parseNullableMetric(r.cells[colGas] ?? "") : null;
+      const inyeccionGas =
+        colInyGas >= 0 ? parseNullableMetric(r.cells[colInyGas] ?? "") : null;
+      const inyeccionAgua =
+        colInyAgua >= 0 ? parseNullableMetric(r.cells[colInyAgua] ?? "") : null;
+
+      const hasAnyMetric =
+        petroleo != null ||
+        agua != null ||
+        gas != null ||
+        inyeccionGas != null ||
+        inyeccionAgua != null;
+
+      if (!hasAnyMetric) {
+        report.ok = false;
+        unresolved.add(rowIndex);
+        report.missingMetrics.push({
+          rowIndex,
+          rowNumber: r.rowNumber,
+        });
+        continue;
+      }
+
+      const rp = resolveNameToId(pozoIndex, pozoName);
+      if (!rp.ok) {
+        report.ok = false;
+        unresolved.add(rowIndex);
+
+        if (rp.reason === "missing") {
+          report.missingPozos.push({
+            rowIndex,
+            rowNumber: r.rowNumber,
+            pozoName,
+          });
+        } else {
+          report.ambiguousPozos.push({
+            rowIndex,
+            rowNumber: r.rowNumber,
+            pozoName,
+            candidates: rp.candidates,
+          });
+        }
+        continue;
+      }
+
+      let capaId: string | null = null;
+
+      if (scenarioTipoEscenarioId === "datos") {
+        const rc = resolveNameToId(capaIndex, capaName);
+        if (!rc.ok) {
+          report.ok = false;
+          unresolved.add(rowIndex);
+
+          if (rc.reason === "missing") {
+            report.missingCapas.push({
+              rowIndex,
+              rowNumber: r.rowNumber,
+              capaName,
+            });
+          } else {
+            report.ambiguousCapas.push({
+              rowIndex,
+              rowNumber: r.rowNumber,
+              capaName,
+              candidates: rc.candidates,
+            });
+          }
+          continue;
+        }
+
+        capaId = rc.id;
+      }
+
+      const logicalKey = buildScenarioLogicalKey(
+        scenarioTipoEscenarioId,
+        rp.id,
+        fecha,
+        capaId,
+      );
+
+      if (logicalKeys.has(logicalKey)) {
+        report.ok = false;
+        unresolved.add(rowIndex);
+        report.duplicateLogicalRows.push({
+          rowIndex,
+          rowNumber: r.rowNumber,
+        });
+        continue;
+      }
+
+      logicalKeys.add(logicalKey);
+
+      report.resolved += 1;
+      report.rows.push({
+        rowIndex,
+        rowNumber: r.rowNumber,
+        pozoId: rp.id,
+        capaId,
+        fecha,
+        petroleo,
+        agua,
+        gas,
+        inyeccionGas,
+        inyeccionAgua,
+      });
+    }
+
+    report.unresolvedRowIndices = Array.from(unresolved.values());
+    return { report, colPozo, colCapa };
+  };
+
+  const buildScenarioInvalidCellsMap = (
+    report: ScenarioResolveReport,
+    colPozo: number,
+    colCapa: number,
+  ): InvalidCellsMap => {
+    const invalid: InvalidCellsMap = {};
+
+    for (const x of report.missingPozos ?? []) {
+      invalid[`${x.rowIndex}:${colPozo}`] = "missing";
+    }
+    for (const x of report.ambiguousPozos ?? []) {
+      invalid[`${x.rowIndex}:${colPozo}`] = "ambiguous";
+    }
+
+    if (colCapa >= 0) {
+      for (const x of report.missingCapas ?? []) {
+        invalid[`${x.rowIndex}:${colCapa}`] = "missing";
+      }
+      for (const x of report.ambiguousCapas ?? []) {
+        invalid[`${x.rowIndex}:${colCapa}`] = "ambiguous";
+      }
+    }
+
+    return invalid;
+  };
+
   const handleDryRun = async () => {
     setError(null);
+    setProgress(buildInitialProgress(kind));
 
     if (!proyectoId) {
       setError("No hay proyecto seleccionado.");
+      updateProgress({
+        phase: "error",
+        message: "No hay proyecto seleccionado.",
+      });
       return;
     }
 
@@ -328,42 +928,165 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
       setLastDryRun(null);
 
       if (kind === "capas") {
+        updateProgress({
+          kind,
+          phase: "dry-run",
+          current: 0,
+          total: 0,
+          message: "Ejecutando dry-run de capas...",
+        });
+
         const res = await window.electron.importCapasDryRun({
           proyectoId,
           content: capasTxt,
         } as any);
 
         setLastDryRun(res);
+        updateProgress({
+          kind,
+          phase: "done",
+          current: 1,
+          total: 1,
+          message: "Dry-run de capas finalizado.",
+        });
         setActiveKey("database");
         return;
       }
 
       if (kind === "maps") {
+        updateProgress({
+          kind,
+          phase: "preparing",
+          current: 0,
+          total: 0,
+          message: "Validando JSON de maps...",
+        });
+
         let extra: any;
         try {
           extra = JSON.parse(mapsJson);
         } catch {
           setError("El JSON de Maps es inválido.");
+          updateProgress({
+            kind,
+            phase: "error",
+            message: "El JSON de Maps es inválido.",
+          });
           return;
         }
+
+        updateProgress({
+          kind,
+          phase: "dry-run",
+          current: 0,
+          total: 0,
+          message: "Ejecutando dry-run de maps...",
+        });
 
         const payload = { proyectoId, ...extra };
         const res = await window.electron.importMapsDryRun(payload as any);
 
         setLastDryRun(res);
+        updateProgress({
+          kind,
+          phase: "done",
+          current: 1,
+          total: 1,
+          message: "Dry-run de maps finalizado.",
+        });
         setActiveKey("database");
         return;
       }
 
-      // ✅ Pozo-Capa: dry-run con validación contra DB
+      if (kind === "escenarios") {
+        updateProgress({
+          kind,
+          phase: "validating",
+          current: 0,
+          total: 0,
+          message: "Validando filas de escenario contra la DB...",
+        });
+
+        const { report, colPozo, colCapa } =
+          await computeScenarioReportWithCols();
+        setScenarioReport(report);
+        setScenarioInvalidCells(
+          buildScenarioInvalidCellsMap(report, colPozo, colCapa),
+        );
+
+        if (!report.ok) {
+          setScenarioViewMode("unresolved");
+          setLastDryRun({
+            status: "failed",
+            kind: "escenarios",
+            rowsTotal: scenarioImport.rows.length,
+            rowsSelected:
+              scenarioImport.selectedRows?.filter(Boolean).length ?? 0,
+            resolved: report.resolved,
+            totalSelected: report.totalSelected,
+            unresolved: report.unresolvedRowIndices.length,
+            missingPozos: report.missingPozos.slice(0, 20),
+            missingCapas: report.missingCapas.slice(0, 20),
+            ambiguousPozos: report.ambiguousPozos.slice(0, 10),
+            ambiguousCapas: report.ambiguousCapas.slice(0, 10),
+            invalidFechas: report.invalidFechas.slice(0, 20),
+            missingMetrics: report.missingMetrics.slice(0, 20),
+            duplicateLogicalRows: report.duplicateLogicalRows.slice(0, 20),
+          });
+          updateProgress({
+            kind,
+            phase: "error",
+            current: report.resolved,
+            total: report.totalSelected,
+            message: `Validación con errores: ${report.resolved}/${report.totalSelected} filas resueltas.`,
+          });
+          setActiveKey("database");
+          return;
+        }
+
+        updateProgress({
+          kind,
+          phase: "dry-run",
+          current: report.resolved,
+          total: report.totalSelected,
+          message: "Ejecutando dry-run del escenario...",
+        });
+
+        const content = buildContentForCommit("Escenario");
+        const res = await window.electron.importEscenariosDryRun({
+          proyectoId,
+          tipoEscenarioId: scenarioTipoEscenarioId,
+          nombreEscenario: scenarioNombre.trim(),
+          content,
+        });
+
+        setLastDryRun(res);
+        updateProgress({
+          kind,
+          phase: "done",
+          current: report.totalSelected,
+          total: report.totalSelected,
+          message: "Dry-run de escenario finalizado.",
+        });
+        setActiveKey("database");
+        return;
+      }
+
+      updateProgress({
+        kind,
+        phase: "validating",
+        current: 0,
+        total: 0,
+        message: "Resolviendo Pozo/Capa contra la DB...",
+      });
+
       const { report, colPozo, colCapa } =
         await computePozoCapaReportWithCols();
       setPozoCapaReport(report);
+      setPozoCapaInvalidCells(
+        buildPozoCapaInvalidCellsMap(report, colPozo, colCapa),
+      );
 
-      // ✅ marcar celdas inválidas (pozo/capa missing o ambiguous)
-      setPozoCapaInvalidCells(buildInvalidCellsMap(report, colPozo, colCapa));
-
-      // si hay fallas, entrá directo a "solo no resueltas"
       if (!report.ok) setPozoCapaViewMode("unresolved");
 
       const res = {
@@ -373,10 +1096,7 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
         rowsSelected: pozoCapaImport.selectedRows?.filter(Boolean).length ?? 0,
         resolved: report.resolved,
         totalSelected: report.totalSelected,
-
-        // ojo: unresolvedRowIndices puede incluir invalidDepth; igual es un resumen útil
         unresolved: report.unresolvedRowIndices.length,
-
         missingPozos: report.missingPozos.slice(0, 20),
         missingCapas: report.missingCapas.slice(0, 20),
         ambiguousPozos: report.ambiguousPozos.slice(0, 10),
@@ -385,9 +1105,24 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
       };
 
       setLastDryRun(res);
+      updateProgress({
+        kind,
+        phase: report.ok ? "done" : "error",
+        current: report.resolved,
+        total: report.totalSelected,
+        message: report.ok
+          ? "Dry-run de Pozo-Capa finalizado."
+          : `Validación con errores: ${report.resolved}/${report.totalSelected} filas resueltas.`,
+      });
       setActiveKey("database");
     } catch (e: any) {
-      setError(e?.message ?? String(e));
+      const msg = e?.message ?? String(e);
+      setError(msg);
+      updateProgress({
+        kind,
+        phase: "error",
+        message: msg,
+      });
     } finally {
       setIsRunning(false);
     }
@@ -395,9 +1130,14 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
 
   const handleCommit = async () => {
     setError(null);
+    setProgress(buildInitialProgress(kind));
 
     if (!proyectoId) {
       setError("No hay proyecto seleccionado.");
+      updateProgress({
+        phase: "error",
+        message: "No hay proyecto seleccionado.",
+      });
       return;
     }
 
@@ -407,6 +1147,14 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
       setLastCommit(null);
 
       if (kind === "capas") {
+        updateProgress({
+          kind,
+          phase: "committing",
+          current: 0,
+          total: 0,
+          message: "Importando capas...",
+        });
+
         const res = await window.electron.importCapasCommit({
           proyectoId,
           content: capasTxt,
@@ -414,44 +1162,169 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
 
         setLastCommit(res);
         invalidateCapasCache(proyectoId);
+        updateProgress({
+          kind,
+          phase: "done",
+          current: 1,
+          total: 1,
+          message: "Importación de capas finalizada.",
+        });
         setActiveKey("database");
         return;
       }
 
       if (kind === "maps") {
+        updateProgress({
+          kind,
+          phase: "preparing",
+          current: 0,
+          total: 0,
+          message: "Validando JSON de maps...",
+        });
+
         let extra: any;
         try {
           extra = JSON.parse(mapsJson);
         } catch {
           setError("El JSON de Maps es inválido.");
+          updateProgress({
+            kind,
+            phase: "error",
+            message: "El JSON de Maps es inválido.",
+          });
           return;
         }
+
+        updateProgress({
+          kind,
+          phase: "committing",
+          current: 0,
+          total: 0,
+          message: "Importando maps...",
+        });
 
         const payload = { proyectoId, ...extra };
         const res = await window.electron.importMapsCommit(payload as any);
 
         setLastCommit(res);
+        updateProgress({
+          kind,
+          phase: "done",
+          current: 1,
+          total: 1,
+          message: "Importación de maps finalizada.",
+        });
         setActiveKey("database");
         return;
       }
 
-      // ✅ Pozo-Capa: commit SOLO si está todo resuelto
+      if (kind === "escenarios") {
+        updateProgress({
+          kind,
+          phase: "validating",
+          current: 0,
+          total: 0,
+          message: "Validando filas del escenario...",
+        });
+
+        const { report, colPozo, colCapa } =
+          await computeScenarioReportWithCols();
+        setScenarioReport(report);
+        setScenarioInvalidCells(
+          buildScenarioInvalidCellsMap(report, colPozo, colCapa),
+        );
+
+        if (!report.ok) {
+          setScenarioViewMode("unresolved");
+          updateProgress({
+            kind,
+            phase: "error",
+            current: report.resolved,
+            total: report.totalSelected,
+            message: `No se puede commitear: ${report.unresolvedRowIndices.length} filas sin resolver.`,
+          });
+          throw new Error(
+            `Escenarios: NO se puede commitear porque faltan resolver filas. ` +
+              `resolved=${report.resolved}/${report.totalSelected}, unresolved=${report.unresolvedRowIndices.length}.`,
+          );
+        }
+
+        updateProgress({
+          kind,
+          phase: "committing",
+          current: report.resolved,
+          total: report.totalSelected,
+          message: "Importando escenario...",
+        });
+
+        const content = buildContentForCommit("Escenario");
+
+        const res = await window.electron.importEscenariosCommit({
+          proyectoId,
+          tipoEscenarioId: scenarioTipoEscenarioId,
+          nombreEscenario: scenarioNombre.trim(),
+          content,
+        });
+
+        setLastCommit(res);
+
+        clearImport("Escenario");
+        setScenarioFile(null);
+        resetScenarioResolutionState();
+
+        updateProgress({
+          kind,
+          phase: "done",
+          current: report.totalSelected,
+          total: report.totalSelected,
+          message: "Importación del escenario finalizada.",
+        });
+
+        setActiveKey("database");
+        return;
+      }
+
+      updateProgress({
+        kind,
+        phase: "validating",
+        current: 0,
+        total: 0,
+        message: "Validando Pozo-Capa antes del commit...",
+      });
+
       const { report, colPozo, colCapa } =
         await computePozoCapaReportWithCols();
       setPozoCapaReport(report);
-      setPozoCapaInvalidCells(buildInvalidCellsMap(report, colPozo, colCapa));
+      setPozoCapaInvalidCells(
+        buildPozoCapaInvalidCellsMap(report, colPozo, colCapa),
+      );
 
       if (!report.ok) {
         setPozoCapaViewMode("unresolved");
+        updateProgress({
+          kind,
+          phase: "error",
+          current: report.resolved,
+          total: report.totalSelected,
+          message: `No se puede commitear: ${report.unresolvedRowIndices.length} filas sin resolver.`,
+        });
         throw new Error(
           `Pozo-Capa: NO se puede commitear porque faltan resolver filas. ` +
-            `resolved=${report.resolved}/${report.totalSelected}, unresolved=${report.unresolvedRowIndices.length}. ` +
-            `Usá "Mostrar solo no resueltas" y corregí manualmente.`,
+            `resolved=${report.resolved}/${report.totalSelected}, unresolved=${report.unresolvedRowIndices.length}.`,
         );
       }
 
       let created = 0;
+      let processed = 0;
       const errors: string[] = [];
+
+      updateProgress({
+        kind,
+        phase: "committing",
+        current: 0,
+        total: report.rows.length,
+        message: `Creando relaciones Pozo-Capa... 0/${report.rows.length}`,
+      });
 
       for (const r of report.rows) {
         try {
@@ -470,11 +1343,27 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
               e instanceof Error ? e.message : "unknown"
             })`,
           );
+        } finally {
+          processed += 1;
+          updateProgress({
+            kind,
+            phase: "committing",
+            current: processed,
+            total: report.rows.length,
+            message: `Creando relaciones Pozo-Capa... ${processed}/${report.rows.length}`,
+          });
         }
       }
 
       if (errors.length > 0) {
         const head = errors.slice(0, 10).join(" | ");
+        updateProgress({
+          kind,
+          phase: "error",
+          current: processed,
+          total: report.rows.length,
+          message: `Pozo-Capa finalizó con ${errors.length} errores.`,
+        });
         throw new Error(`Pozo-Capa: ${errors.length} errores. ${head}`);
       }
 
@@ -485,15 +1374,38 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
       setPozoCapaInvalidCells({});
 
       setLastCommit({ status: "ok", kind: "pozoCapa", created });
+      updateProgress({
+        kind,
+        phase: "done",
+        current: report.rows.length,
+        total: report.rows.length,
+        message: `Importación Pozo-Capa finalizada. Creados: ${created}.`,
+      });
       setActiveKey("database");
     } catch (e: any) {
-      setError(e?.message ?? String(e));
+      const msg = e?.message ?? String(e);
+      setError(msg);
+      updateProgress({
+        kind,
+        phase: "error",
+        message: msg,
+      });
     } finally {
       setIsRunning(false);
     }
   };
 
-  const handleClose = () => onClose();
+  const handleClose = () => {
+    resetProgressState();
+    onClose();
+  };
+
+  const scenarioFieldOptions = useMemo(
+    () => scenarioFieldOptionsForType(scenarioTipoEscenarioId),
+    [scenarioTipoEscenarioId],
+  );
+
+  const progressPercent = getProgressPercent(progress);
 
   return (
     <OptionsShellModal<TabKey>
@@ -503,9 +1415,9 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
       items={items}
       activeKey={activeKey}
       onChangeKey={setActiveKey}
-      widthClassName="osm__wDefault"
-      heightClassName="osm__hDefault"
-      sidebarWidthClassName="osm__gridDefault"
+      widthClassName="osm__wFull"
+      heightClassName="osm__hFull"
+      sidebarWidthClassName="osm__gridFull"
       panelTitle={panelTitle}
       panelSubtitle={panelSubtitle}
       footer={
@@ -522,7 +1434,8 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
 
           {activeKey === "capas" ||
           activeKey === "maps" ||
-          activeKey === "pozoCapa" ? (
+          activeKey === "pozoCapa" ||
+          activeKey === "escenarios" ? (
             <>
               <button
                 className="osm__footerBtn"
@@ -548,6 +1461,28 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
         </div>
       }
     >
+      {progress?.visible ? (
+        <div className="importModal__progress">
+          <div className="importModal__progressTop">
+            <div className="importModal__progressMessage">
+              {progress.message}
+            </div>
+            <div className="importModal__progressMeta">
+              {progress.total > 0
+                ? `${progress.current}/${progress.total} · ${progressPercent}%`
+                : progress.phase}
+            </div>
+          </div>
+
+          <div className="importModal__progressBar">
+            <div
+              className={`importModal__progressFill importModal__progressFill--${progress.phase}`}
+              style={{ width: `${progressPercent}%` }}
+            />
+          </div>
+        </div>
+      ) : null}
+
       {activeKey === "capas" ? (
         <CapasTab
           proyectoId={proyectoId}
@@ -596,6 +1531,83 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
           setViewMode={setPozoCapaViewMode}
           report={pozoCapaReport}
           invalidCells={pozoCapaInvalidCells}
+        />
+      ) : null}
+
+      {activeKey === "escenarios" ? (
+        <EscenariosTab
+          proyectoId={proyectoId}
+          tipoEscenarioId={scenarioTipoEscenarioId}
+          setTipoEscenarioId={(next) => {
+            setScenarioTipoEscenarioId(next);
+            resetScenarioResolutionState();
+          }}
+          nombreEscenario={scenarioNombre}
+          setNombreEscenario={setScenarioNombre}
+          file={scenarioFile}
+          setFile={setScenarioFile}
+          importState={scenarioImport}
+          isRunning={isRunning}
+          error={error}
+          fieldOptions={scenarioFieldOptions}
+          onLoadContent={async (f) => {
+            if (!f) {
+              clearImport("Escenario");
+              resetScenarioResolutionState();
+              return;
+            }
+            const text = await f.text();
+            setImportFromContent("Escenario", text);
+            resetScenarioResolutionState();
+          }}
+          onChangeMapping={(col, m) =>
+            setImportMapping("Escenario", col, m as any)
+          }
+          onChangeColSelected={(col, sel) =>
+            setImportColSelected("Escenario", col, sel)
+          }
+          onChangeAllCols={(sel) => setImportAllColsSelected("Escenario", sel)}
+          onChangeRowSelected={(row, sel) =>
+            setImportRowSelected("Escenario", row, sel)
+          }
+          onChangeAllRows={(sel) => setImportAllRowsSelected("Escenario", sel)}
+          onChangeCell={(r, c, v) => setImportCell("Escenario", r, c, v)}
+          viewMode={scenarioViewMode}
+          setViewMode={setScenarioViewMode}
+          report={scenarioReport}
+          invalidCells={scenarioInvalidCells}
+          onDeselectUnresolvedRows={() => {
+            if (!scenarioReport) return;
+            deselectScenarioRows(scenarioReport.unresolvedRowIndices);
+          }}
+          onDeselectMissingPozos={() => {
+            if (!scenarioReport) return;
+            deselectScenarioRows(
+              scenarioReport.missingPozos.map((x) => x.rowIndex),
+            );
+          }}
+          onDeselectMissingCapas={() => {
+            if (!scenarioReport) return;
+            deselectScenarioRows(
+              scenarioReport.missingCapas.map((x) => x.rowIndex),
+            );
+          }}
+          onDeselectRowsByPozoName={(pozoName) => {
+            if (!scenarioReport) return;
+            deselectScenarioRows(
+              scenarioReport.missingPozos
+                .filter((x) => x.pozoName === pozoName)
+                .map((x) => x.rowIndex),
+            );
+          }}
+          onDeselectRowsByCapaName={(capaName) => {
+            if (!scenarioReport) return;
+            deselectScenarioRows(
+              scenarioReport.missingCapas
+                .filter((x) => x.capaName === capaName)
+                .map((x) => x.rowIndex),
+            );
+          }}
         />
       ) : null}
 
@@ -667,6 +1679,325 @@ function CapasTab(props: {
   );
 }
 
+function EscenariosTab(props: {
+  proyectoId: string | null;
+  tipoEscenarioId: string;
+  setTipoEscenarioId: (v: string) => void;
+  nombreEscenario: string;
+  setNombreEscenario: (v: string) => void;
+  file: File | null;
+  setFile: (f: File | null) => void;
+  importState: any;
+  isRunning: boolean;
+  error: string | null;
+  fieldOptions: Array<{ key: string; label: string }>;
+  onLoadContent: (f: File | null) => Promise<void>;
+  onChangeMapping: (colIndex: number, mapping: string) => void;
+  onChangeColSelected: (colIndex: number, selected: boolean) => void;
+  onChangeAllCols: (selected: boolean) => void;
+  onChangeRowSelected: (rowIndex: number, selected: boolean) => void;
+  onChangeAllRows: (selected: boolean) => void;
+  onChangeCell: (rowIndex: number, colIndex: number, value: string) => void;
+  viewMode: ScenarioViewMode;
+  setViewMode: (m: ScenarioViewMode) => void;
+  report: ScenarioResolveReport | null;
+  invalidCells: InvalidCellsMap;
+  onDeselectUnresolvedRows: () => void;
+  onDeselectMissingPozos: () => void;
+  onDeselectMissingCapas: () => void;
+  onDeselectRowsByPozoName: (pozoName: string) => void;
+  onDeselectRowsByCapaName: (capaName: string) => void;
+}) {
+  const {
+    proyectoId,
+    tipoEscenarioId,
+    setTipoEscenarioId,
+    nombreEscenario,
+    setNombreEscenario,
+    file,
+    setFile,
+    importState,
+    isRunning,
+    error,
+    fieldOptions,
+    onLoadContent,
+    onChangeMapping,
+    onChangeColSelected,
+    onChangeAllCols,
+    onChangeRowSelected,
+    onChangeAllRows,
+    onChangeCell,
+    viewMode,
+    setViewMode,
+    report,
+    invalidCells,
+    onDeselectUnresolvedRows,
+    onDeselectMissingPozos,
+    onDeselectMissingCapas,
+    onDeselectRowsByPozoName,
+    onDeselectRowsByCapaName,
+  } = props;
+
+  const mappingErrs = importState.mappingErrors?.length ?? 0;
+  const rowErrs = Object.keys(importState.rowErrors ?? {}).length;
+
+  const unresolvedRowIndices = useMemo(() => {
+    if (!report) return [];
+    return report.unresolvedRowIndices;
+  }, [report]);
+
+  const missingPozosGrouped = useMemo(() => {
+    if (!report) return [];
+    return groupRowsByLabel(report.missingPozos, (x) => x.pozoName);
+  }, [report]);
+
+  const missingCapasGrouped = useMemo(() => {
+    if (!report) return [];
+    return groupRowsByLabel(report.missingCapas, (x) => x.capaName);
+  }, [report]);
+
+  const rowIndexMap =
+    viewMode === "unresolved" && report ? unresolvedRowIndices : null;
+
+  const onChangeAllRowsView = (sel: boolean) => {
+    if (!rowIndexMap) {
+      onChangeAllRows(sel);
+      return;
+    }
+    for (const idx of rowIndexMap) {
+      onChangeRowSelected(idx, sel);
+    }
+  };
+
+  return (
+    <div className="importModal__col">
+      <div className="importModal__hint">
+        <div>
+          <b>Proyecto:</b>{" "}
+          {proyectoId ? (
+            <code>{proyectoId}</code>
+          ) : (
+            <span className="importModal__warn">(no seleccionado)</span>
+          )}
+        </div>
+
+        <div style={{ opacity: 0.85 }}>
+          Tipo <b>{tipoEscenarioId}</b>. En <b>datos</b> se exige Pozo + Capa.
+          En <b>historia</b> la capa debe quedar ignorada.
+        </div>
+      </div>
+
+      {report ? (
+        <div
+          className="importModal__hint"
+          style={{
+            border: "1px solid rgba(255,255,255,0.12)",
+            borderRadius: 8,
+          }}
+        >
+          {report.ok ? (
+            <div>
+              ✅ Validación OK: <b>{report.resolved}</b> /{" "}
+              <b>{report.totalSelected}</b> filas resueltas.
+            </div>
+          ) : (
+            <div className="importModal__resolveBlock">
+              <div>
+                ❌ Faltan resolver: <b>{report.resolved}</b> /{" "}
+                <b>{report.totalSelected}</b> (unresolved:{" "}
+                <b>{report.unresolvedRowIndices.length}</b>)
+              </div>
+
+              <div className="importModal__resolveActions">
+                <button
+                  type="button"
+                  className="osm__footerBtn"
+                  onClick={() => setViewMode("unresolved")}
+                >
+                  Mostrar solo no resueltas
+                </button>
+
+                <button
+                  type="button"
+                  className="osm__footerBtn"
+                  onClick={() => setViewMode("all")}
+                >
+                  Mostrar todas
+                </button>
+
+                <button
+                  type="button"
+                  className="osm__footerBtn"
+                  onClick={onDeselectUnresolvedRows}
+                >
+                  Deseleccionar no resueltas
+                </button>
+
+                {report.missingPozos.length > 0 ? (
+                  <button
+                    type="button"
+                    className="osm__footerBtn"
+                    onClick={onDeselectMissingPozos}
+                  >
+                    Deseleccionar pozos faltantes
+                  </button>
+                ) : null}
+
+                {report.missingCapas.length > 0 ? (
+                  <button
+                    type="button"
+                    className="osm__footerBtn"
+                    onClick={onDeselectMissingCapas}
+                  >
+                    Deseleccionar capas faltantes
+                  </button>
+                ) : null}
+              </div>
+
+              {missingPozosGrouped.length > 0 ? (
+                <div className="importModal__groupSection">
+                  <div className="importModal__groupTitle">
+                    Pozos no encontrados
+                  </div>
+
+                  <div className="importModal__groupList">
+                    {missingPozosGrouped.map((item) => (
+                      <div key={item.label} className="importModal__groupItem">
+                        <div className="importModal__groupLabel">
+                          <code>{item.label}</code>
+                          <span>({item.count} filas)</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="osm__footerBtn"
+                          onClick={() => onDeselectRowsByPozoName(item.label)}
+                        >
+                          Deseleccionar esas filas
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+
+              {missingCapasGrouped.length > 0 ? (
+                <div className="importModal__groupSection">
+                  <div className="importModal__groupTitle">
+                    Capas no encontradas
+                  </div>
+
+                  <div className="importModal__groupList">
+                    {missingCapasGrouped.map((item) => (
+                      <div key={item.label} className="importModal__groupItem">
+                        <div className="importModal__groupLabel">
+                          <code>{item.label}</code>
+                          <span>({item.count} filas)</span>
+                        </div>
+
+                        <button
+                          type="button"
+                          className="osm__footerBtn"
+                          onClick={() => onDeselectRowsByCapaName(item.label)}
+                        >
+                          Deseleccionar esas filas
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="importModal__hint" style={{ opacity: 0.85 }}>
+          Igual que Pozo-Capa: subí TXT, mapeá columnas y ejecutá <b>Dry-run</b>{" "}
+          para validar todas las filas contra la DB.
+        </div>
+      )}
+
+      <div className="importModal__box">
+        <div className="importModal__boxTitle">Configuración del escenario</div>
+
+        <div className="importModal__row">
+          <div className="importModal__label">Tipo</div>
+          <select
+            className="importModal__select"
+            value={tipoEscenarioId}
+            onChange={(e) => setTipoEscenarioId(e.target.value)}
+            disabled={isRunning}
+          >
+            {SCENARIO_TYPE_OPTIONS.map((opt) => (
+              <option key={opt.id} value={opt.id}>
+                {opt.nombre}
+              </option>
+            ))}
+          </select>
+        </div>
+
+        <div className="importModal__row">
+          <div className="importModal__label">Nombre</div>
+          <input
+            className="importModal__input"
+            value={nombreEscenario}
+            onChange={(e) => setNombreEscenario(e.target.value)}
+            disabled={isRunning}
+            placeholder="Ej: Datos Marzo 2026"
+          />
+        </div>
+      </div>
+
+      <div className="importModal__box">
+        <div className="importModal__boxTitle">Archivo escenario (TXT)</div>
+        <input
+          className="importModal__file"
+          type="file"
+          accept=".txt"
+          disabled={isRunning}
+          onChange={async (e) => {
+            const f = e.target.files?.[0] ?? null;
+            setFile(f);
+            try {
+              await onLoadContent(f);
+            } catch {
+              // noop
+            }
+          }}
+        />
+        {file ? <div className="importModal__hint">{file.name}</div> : null}
+      </div>
+
+      {file ? (
+        <ImportMappingTable
+          titleLeft={`Filas: ${importState.rows.length}${rowIndexMap ? ` | Mostrando no resueltas: ${rowIndexMap.length}` : ""}`}
+          titleRight={`Mapping errs: ${mappingErrs} | Row errs: ${rowErrs}`}
+          columns={importState.columns}
+          columnUnits={importState.columnUnits}
+          selectedCols={importState.selectedCols}
+          selectedRows={importState.selectedRows}
+          rows={importState.rows}
+          mapping={importState.mapping}
+          rowErrors={importState.rowErrors}
+          mappingErrors={importState.mappingErrors}
+          fieldOptions={fieldOptions as any}
+          onChangeMapping={onChangeMapping}
+          onChangeColSelected={onChangeColSelected}
+          onChangeAllCols={onChangeAllCols}
+          onChangeRowSelected={onChangeRowSelected}
+          onChangeAllRows={onChangeAllRowsView}
+          onChangeCell={onChangeCell}
+          disabled={isRunning}
+          rowIndexMap={rowIndexMap}
+          invalidCells={invalidCells}
+        />
+      ) : null}
+
+      {error ? <div className="importModal__error">{error}</div> : null}
+    </div>
+  );
+}
+
 function PozoCapaTab(props: {
   proyectoId: string | null;
   file: File | null;
@@ -690,7 +2021,6 @@ function PozoCapaTab(props: {
   setViewMode: (m: PozoCapaViewMode) => void;
   report: PozoCapaResolveReport | null;
 
-  // ✅ celdas inválidas
   invalidCells: InvalidCellsMap;
 }) {
   const {
@@ -716,7 +2046,6 @@ function PozoCapaTab(props: {
   const mappingErrs = importState.mappingErrors?.length ?? 0;
   const rowErrs = Object.keys(importState.rowErrors ?? {}).length;
 
-  // ✅ “unresolved” para el usuario: solo las filas donde falla Pozo o Capa (missing/ambiguous)
   const unresolvedNameRowIndices = useMemo(() => {
     if (!report) return [];
     const s = new Set<number>();
@@ -735,7 +2064,6 @@ function PozoCapaTab(props: {
       onChangeAllRows(sel);
       return;
     }
-    // seleccionar solo las filas visibles (no resueltas)
     for (const idx of rowIndexMap) {
       onChangeRowSelected(idx, sel);
     }
@@ -754,7 +2082,7 @@ function PozoCapaTab(props: {
         </div>
         <div style={{ opacity: 0.85 }}>
           Subí el TXT de Pozo-Capa y mapeá columnas (Pozo/Capa/Tope/Base). Podés
-          excluir filas/columnas. La tabla está virtualizada.
+          excluir filas/columnas.
         </div>
       </div>
 
@@ -769,7 +2097,7 @@ function PozoCapaTab(props: {
           {report.ok ? (
             <div>
               ✅ Validación OK: <b>{report.resolved}</b> /{" "}
-              <b>{report.totalSelected}</b> filas resueltas (todas).
+              <b>{report.totalSelected}</b> filas resueltas.
             </div>
           ) : (
             <div>
@@ -792,17 +2120,13 @@ function PozoCapaTab(props: {
                   Mostrar todas
                 </button>
               </div>
-              <div style={{ marginTop: 8, opacity: 0.85 }}>
-                Tip: corregí las celdas marcadas en rojo y ejecutá{" "}
-                <b>Dry-run</b> de nuevo.
-              </div>
             </div>
           )}
         </div>
       ) : (
         <div className="importModal__hint" style={{ opacity: 0.85 }}>
-          Tip: ejecutá <b>Dry-run</b> para validar TODAS las filas seleccionadas
-          contra la DB y marcar las celdas inválidas.
+          Ejecutá <b>Dry-run</b> para validar las filas contra la DB y marcar
+          celdas inválidas.
         </div>
       )}
 
@@ -878,8 +2202,7 @@ function MapsTab(props: {
         </div>
 
         <div style={{ opacity: 0.85 }}>
-          Pegá un <b>JSON</b> con el payload de Maps (sin{" "}
-          <code>proyectoId</code>). El modal lo agrega automáticamente.
+          Pegá un <b>JSON</b> con el payload de Maps.
         </div>
       </div>
 
@@ -890,10 +2213,9 @@ function MapsTab(props: {
           value={value}
           onChange={(e) => setValue(e.target.value)}
           disabled={isRunning}
-          placeholder={`Ejemplo (ajustá a tu MapImportPayload real):
-{
+          placeholder={`{
   "rows": [
-    { "capaId": "…", "grupoVariableId": "…", "x": 0, "y": 0, "value": 1.23 }
+    { "capaId": "...", "grupoVariableId": "...", "x": 0, "y": 0, "value": 1.23 }
   ]
 }`}
           spellCheck={false}
@@ -907,7 +2229,7 @@ function MapsTab(props: {
 
 function DatabaseTab(props: {
   proyectoId: string | null;
-  lastKind: "capas" | "pozoCapa" | "maps";
+  lastKind: "capas" | "pozoCapa" | "escenarios" | "maps";
   lastDryRun: any | null;
   lastCommit: any | null;
   error: string | null;
@@ -967,39 +2289,28 @@ function HelpTab() {
     <div className="importModal__col">
       <div className="importModal__box">
         <div className="importModal__boxTitle">Capas (TXT)</div>
-
-        <div className="importModal__p">
-          Pegá el TXT completo tal como lo consumen tus importers v2. Ejemplo
-          genérico:
-        </div>
-
-        <pre className="importModal__pre">{`CAPA\tALIAS\t...
-ACU-MO5\tAcuifero Mo5\t...
-MOL-01\tMolasa 01\t...`}</pre>
+        <pre className="importModal__pre">{`CAPA
+ACU-MO5
+MOL-01`}</pre>
       </div>
 
       <div className="importModal__box">
         <div className="importModal__boxTitle">Pozo-Capa (TXT)</div>
-
-        <div className="importModal__p">
-          Debe incluir columnas para <code>Pozo</code>, <code>Capa</code>,{" "}
-          <code>Tope</code>, <code>Base</code>. El orden no importa (se mapea
-          con select).
-        </div>
-
         <pre className="importModal__pre">{`POZO\tCAPA\tTOPE\tBASE
 PZ-001\tMOL-01\t1234.5\t1301.2
 PZ-002\tMOL-01\t1200\t1280`}</pre>
       </div>
 
       <div className="importModal__box">
+        <div className="importModal__boxTitle">Escenarios (TXT)</div>
+        <pre className="importModal__pre">{`# Datos
+pozo capa fecha petroleo agua gas inyeccionAgua
+PZ-001 MOL-01 2026-03-01 120 30 15 0
+PZ-001 MOL-02 2026-03-01 80 20 10 0`}</pre>
+      </div>
+
+      <div className="importModal__box">
         <div className="importModal__boxTitle">Maps (JSON payload)</div>
-
-        <div className="importModal__p">
-          En v2 el import de maps viene “por filas”. Desde UI lo más estable es
-          pegar un JSON con el payload.
-        </div>
-
         <pre className="importModal__pre">{`{
   "rows": [
     { "capaId": "...", "grupoVariableId": "...", "x": 0, "y": 0, "value": 1.23 }
@@ -1010,7 +2321,7 @@ PZ-002\tMOL-01\t1200\t1280`}</pre>
   );
 }
 
-/** ===== Tabla virtualizada (misma base que venías usando, soporta rowIndexMap + invalidCells) ===== */
+/** ===== Tabla virtualizada ===== */
 
 type VirtualRowProps2<T> = {
   index: number;
@@ -1043,11 +2354,7 @@ function ImportMappingTable(props: {
   onChangeCell: (rowIndex: number, colIndex: number, value: string) => void;
   extraRight?: React.ReactNode;
   disabled?: boolean;
-
-  // ✅ si está presente, la tabla muestra solo esos índices de rows
   rowIndexMap?: number[] | null;
-
-  // ✅ celdas inválidas (pozo/capa missing/ambiguous)
   invalidCells?: InvalidCellsMap;
 }) {
   const {
