@@ -16,14 +16,11 @@ export type ElipsesNormalizationAllPayload = {
   capa?: string | null; // capaNombre
   fecha?: string | null; // YYYY-MM-DD
 
-  // ✅ recomendado si querés normalización por simulación (si tu UI lo tiene)
+  // recomendado si queres normalizacion por simulacion (si tu UI lo tiene)
   simulacionId?: string | null;
 };
 
 export function registerEllipseIpcHandlers() {
-  // =========================
-  // ✅ GEOMETRÍA (Elipse)
-  // =========================
   ipcMain.handle("ellipseCreate", async (event, payload: CreateElipseInput) => {
     const frame = event.senderFrame;
     if (!frame) throw new Error("Missing senderFrame");
@@ -54,9 +51,6 @@ export function registerEllipseIpcHandlers() {
     },
   );
 
-  // =========================
-  // ✅ VARIABLES
-  // =========================
   ipcMain.handle(
     "ellipseVariableCreate",
     async (event, payload: CreateElipseVariableInput) => {
@@ -74,9 +68,6 @@ export function registerEllipseIpcHandlers() {
     return ellipseService.listVariables();
   });
 
-  // =========================
-  // ✅ VALORES
-  // =========================
   ipcMain.handle(
     "ellipseValueCreate",
     async (event, payload: CreateElipseValorInput) => {
@@ -100,10 +91,16 @@ export function registerEllipseIpcHandlers() {
   ipcMain.handle(
     "elipsesNormalizationAll",
     async (event, payload: ElipsesNormalizationAllPayload) => {
-      const frame = event.senderFrame;
-      if (!frame) throw new Error("Missing senderFrame");
-      validateEventFrame(frame);
-      return ellipseService.elipsesNormalizationAll(payload);
+      try {
+        const frame = event.senderFrame;
+        if (!frame) throw new Error("Missing senderFrame");
+        validateEventFrame(frame);
+        return await ellipseService.elipsesNormalizationAll(payload);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : String(error);
+        return { ok: false as const, error: message };
+      }
     },
   );
 }

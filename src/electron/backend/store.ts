@@ -1,6 +1,7 @@
 import type { BackendBootstrapStatus, BackendTruthRegistry } from "./models.js";
 import { databaseService } from "../shared/db/index.js";
 import { migrations } from "../shared/db/migrations.js";
+import { wellStatesService } from "../modules/well-states/application/wellStatesService.js";
 
 const ENTITY_TABLES = [
   "Proyecto",
@@ -120,6 +121,8 @@ class BackendStore {
         "alternativa-desarrollo",
       ],
     );
+
+    await wellStatesService.ensureDefaultTiposEstadoPozo();
 
     return this.getBootstrapStatus();
   }

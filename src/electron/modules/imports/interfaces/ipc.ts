@@ -7,6 +7,8 @@ import type {
   MapImportPayload,
   PozoTxtImportPayload,
   ScenarioTxtImportPayload,
+  SetEstadoPozosLargeImportPayload,
+  SetEstadoPozosLargeProgress,
 } from "../domain/importJob.js";
 
 function validateIpcEvent(event: Electron.IpcMainInvokeEvent) {
@@ -77,6 +79,23 @@ export function registerImportIpcHandlers() {
     async (event, payload: ScenarioTxtImportPayload) => {
       validateIpcEvent(event);
       return importService.commitScenarioTxtImport(payload);
+    },
+  );
+
+  ipcMain.handle(
+    "importSetEstadoPozosLargeCommit",
+    async (event, payload: SetEstadoPozosLargeImportPayload) => {
+      validateIpcEvent(event);
+      return importService.commitSetEstadoPozosLargeImport(
+        payload,
+        (progress: SetEstadoPozosLargeProgress) => {
+          try {
+            event.sender.send("importSetEstadoPozosLargeProgress", progress);
+          } catch {
+            // renderer can be gone during long imports
+          }
+        },
+      );
     },
   );
 }

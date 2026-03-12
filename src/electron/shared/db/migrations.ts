@@ -611,6 +611,74 @@ const valorEscenarioNullableLayerV14Statements = [
  * ✅ v15 queda NO-OP en esquema nuevo.
  */
 const simulacionEscenarioLinkV15Statements: string[] = [];
+const seedWellStateTypesV16Statements = [
+  `INSERT INTO TipoEstadoPozo (id, nombre, extrasJson)
+   SELECT 'well-state--1', '-1', '{"descripcion":"no existe"}'
+   WHERE NOT EXISTS (SELECT 1 FROM TipoEstadoPozo WHERE nombre = '-1')`,
+
+  `INSERT INTO TipoEstadoPozo (id, nombre, extrasJson)
+   SELECT 'well-state-0', '0', '{"descripcion":"cerrado"}'
+   WHERE NOT EXISTS (SELECT 1 FROM TipoEstadoPozo WHERE nombre = '0')`,
+
+  `INSERT INTO TipoEstadoPozo (id, nombre, extrasJson)
+   SELECT 'well-state-1', '1', '{"descripcion":"abierto productor"}'
+   WHERE NOT EXISTS (SELECT 1 FROM TipoEstadoPozo WHERE nombre = '1')`,
+
+  `INSERT INTO TipoEstadoPozo (id, nombre, extrasJson)
+   SELECT 'well-state-2', '2', '{"descripcion":"abierto inyector"}'
+   WHERE NOT EXISTS (SELECT 1 FROM TipoEstadoPozo WHERE nombre = '2')`,
+];
+const setEstadoPozosDetalleByLayerDateV17Statements = [
+  `CREATE TABLE IF NOT EXISTS SetEstadoPozosDetalle__v17 (
+    id VARCHAR PRIMARY KEY,
+    setEstadoPozosId VARCHAR NOT NULL REFERENCES SetEstadoPozos(id),
+    pozoId VARCHAR NOT NULL REFERENCES Pozo(id),
+    capaId VARCHAR REFERENCES Capa(id),
+    capaScopeKey VARCHAR NOT NULL,
+    fecha DATE NOT NULL,
+    tipoEstadoPozoId VARCHAR NOT NULL REFERENCES TipoEstadoPozo(id),
+    createdAt TIMESTAMP NOT NULL,
+    updatedAt TIMESTAMP NOT NULL,
+    extrasJson JSON NOT NULL DEFAULT '{}',
+    UNIQUE(setEstadoPozosId, pozoId, capaScopeKey, fecha)
+  )`,
+
+  `INSERT INTO SetEstadoPozosDetalle__v17 (
+    id,
+    setEstadoPozosId,
+    pozoId,
+    capaId,
+    capaScopeKey,
+    fecha,
+    tipoEstadoPozoId,
+    createdAt,
+    updatedAt,
+    extrasJson
+  )
+   SELECT
+    id,
+    setEstadoPozosId,
+    pozoId,
+    NULL AS capaId,
+    '__NO_CAPA__' AS capaScopeKey,
+    DATE '1900-01-01' AS fecha,
+    tipoEstadoPozoId,
+    createdAt,
+    updatedAt,
+    COALESCE(extrasJson, '{}') AS extrasJson
+   FROM SetEstadoPozosDetalle`,
+
+  `DROP TABLE SetEstadoPozosDetalle`,
+  `ALTER TABLE SetEstadoPozosDetalle__v17 RENAME TO SetEstadoPozosDetalle`,
+
+  `DROP INDEX IF EXISTS ux_setestadopozosdetalle_set_pozo`,
+  `CREATE UNIQUE INDEX IF NOT EXISTS ux_setestadopozosdetalle_set_pozo_capa_fecha
+   ON SetEstadoPozosDetalle(setEstadoPozosId, pozoId, capaScopeKey, fecha)`,
+  `CREATE INDEX IF NOT EXISTS ix_setestadopozosdetalle_set_fecha
+   ON SetEstadoPozosDetalle(setEstadoPozosId, fecha)`,
+  `CREATE INDEX IF NOT EXISTS ix_setestadopozosdetalle_set_capa
+   ON SetEstadoPozosDetalle(setEstadoPozosId, capaId)`,
+];
 
 export const migrations: Migration[] = [
   {
@@ -688,4 +756,16 @@ export const migrations: Migration[] = [
     name: "simulacion_escenario_link_v15",
     statements: simulacionEscenarioLinkV15Statements,
   },
+  {
+    version: 16,
+    name: "seed_well_state_types_v16",
+    statements: seedWellStateTypesV16Statements,
+  },
+  {
+    version: 17,
+    name: "set_estado_pozos_detalle_by_layer_date_v17",
+    statements: setEstadoPozosDetalleByLayerDateV17Statements,
+  },
 ];
+
+

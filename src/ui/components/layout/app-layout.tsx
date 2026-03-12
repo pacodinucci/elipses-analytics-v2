@@ -1,4 +1,4 @@
-// src/components/layout/app-layout.tsx
+﻿// src/components/layout/app-layout.tsx
 import type { PropsWithChildren, ReactNode } from "react";
 
 import { MenuBar } from "../menu/menu-bar";
@@ -11,6 +11,8 @@ type CapasBarPosition = "top" | "left";
 type AppLayoutProps = PropsWithChildren<{
   onAbrirProyecto: () => void;
   onOpenImportar: () => void;
+  onOpenUnidades: () => void;
+  canConfigureUnidades: boolean;
 
   selectedProyecto: Proyecto | null;
 
@@ -35,6 +37,8 @@ export default function AppLayout({
   children,
   onAbrirProyecto,
   onOpenImportar,
+  onOpenUnidades,
+  canConfigureUnidades,
 
   selectedProyecto,
 
@@ -60,6 +64,8 @@ export default function AppLayout({
         <MenuBar
           onAbrirProyecto={onAbrirProyecto}
           onOpenImportar={onOpenImportar}
+          onOpenUnidades={onOpenUnidades}
+          canConfigureUnidades={canConfigureUnidades}
           showWindowMapa={isMapaWindowOpen}
           showWindowTabla={isProduccionWindowOpen}
           showWindowDatosMapa={isDatosMapaWindowOpen}

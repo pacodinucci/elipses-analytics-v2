@@ -21,13 +21,23 @@ app.on("ready", async () => {
       },
     });
 
+    mainWindow.webContents.on("render-process-gone", (_event, details) => {
+      console.error("Renderer process gone:", details);
+    });
+    mainWindow.webContents.on("did-fail-load", (_event, code, description) => {
+      console.error("Renderer did-fail-load:", code, description);
+    });
+
     if (isDev()) {
       await mainWindow.loadURL("http://localhost:5123");
     } else {
       await mainWindow.loadFile(getUIPath());
     }
 
-    pollResources(mainWindow);
+    // Avoid noisy IPC while hot-reloading in dev; polling is mainly for packaged runtime metrics.
+    if (!isDev()) {
+      pollResources(mainWindow);
+    }
 
     ipcMainHandle("getStaticData", () => {
       return getStaticData();

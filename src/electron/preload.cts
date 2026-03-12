@@ -1,20 +1,12 @@
 import electron from "electron";
 
 import type {
-  BackendBootstrapStatus,
-  BackendTruthRegistry,
-  Proyecto,
-} from "./backend/models.js";
-
-import type {
-  CreateProyectoBootstrapInput,
-  RecomputeProyectoArealFromPozosInput,
-} from "./modules/core-data/domain/coreData.js";
-
-import type {
   ImportJobResult,
   PozoTxtImportPayload,
   ScenarioTxtImportPayload,
+  SetEstadoPozosLargeCommitResult,
+  SetEstadoPozosLargeImportPayload,
+  SetEstadoPozosLargeProgress,
 } from "./modules/imports/domain/importJob.js";
 
 // runtime-only
@@ -84,6 +76,25 @@ electron.contextBridge.exposeInMainWorld("electron", {
   },
 
   getStaticData: () => ipcInvoke<StaticData>("getStaticData"),
+  subscribeImportSetEstadoPozosLargeProgress: (
+    callback: (progress: SetEstadoPozosLargeProgress) => void,
+  ) => {
+    return ipcOn<SetEstadoPozosLargeProgress>(
+      "importSetEstadoPozosLargeProgress",
+      (progress) => callback(progress),
+    );
+  },
+
+
+  getPathForFile: (file: unknown) => {
+    try {
+      const p = electron.webUtils.getPathForFile(file as any);
+      const normalized = String(p ?? "").trim();
+      return normalized || null;
+    } catch {
+      return null;
+    }
+  },
 
   backendGetTruthRegistry: () =>
     ipcInvoke<BackendTruthRegistry>("backendGetTruthRegistry"),
@@ -139,7 +150,15 @@ electron.contextBridge.exposeInMainWorld("electron", {
       payload,
     ) as Promise<ImportJobResult>,
 
-  productionCreate: (payload: unknown) =>
+  importSetEstadoPozosLargeCommit: (
+    payload: SetEstadoPozosLargeImportPayload,
+  ) =>
+    electron.ipcRenderer.invoke(
+      "importSetEstadoPozosLargeCommit",
+      payload,
+    ) as Promise<SetEstadoPozosLargeCommitResult>,
+
+    productionCreate: (payload: unknown) =>
     electron.ipcRenderer.invoke("productionCreate", payload),
   productionListByProject: (payload: unknown) =>
     electron.ipcRenderer.invoke("productionListByProject", payload),
@@ -261,3 +280,7 @@ function ipcOn<T>(key: string, callback: (payload: T) => void) {
   electron.ipcRenderer.on(key, cb);
   return () => electron.ipcRenderer.off(key, cb);
 }
+
+
+
+

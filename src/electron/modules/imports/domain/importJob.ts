@@ -39,6 +39,42 @@ export interface ScenarioTxtImportPayload {
   content: string;
 }
 
+export interface SetEstadoPozosLargeImportPayload {
+  proyectoId: string;
+  nombreSetEstadoPozos: string;
+  filePath: string;
+  requestId?: string;
+}
+
+export interface SetEstadoPozosLargeUnresolvedRow {
+  rowNumber: number;
+  pozo: string;
+  capa: string;
+  fecha: string;
+  estado: string;
+  reason: string;
+}
+
+export interface SetEstadoPozosLargeCommitResult {
+  ok: boolean;
+  setEstadoPozosId: string;
+  totalRows: number;
+  insertedRows: number;
+  unresolvedRows: number;
+  unresolvedSample: SetEstadoPozosLargeUnresolvedRow[];
+  previewRows: Array<{ rowNumber: number; cells: string[] }>;
+  unresolvedSampleTruncated: boolean;
+}
+
+export interface SetEstadoPozosLargeProgress {
+  requestId?: string;
+  phase: "starting" | "processing" | "finalizing" | "done";
+  totalBytes: number;
+  processedBytes: number;
+  processedRows: number;
+  unresolvedRows: number;
+}
+
 export interface ImportJobSummary {
   totalRows: number;
   acceptedRows: number;
@@ -102,5 +138,19 @@ export function validateScenarioTxtImportPayload(
   }
   if (!payload.content?.trim()) {
     throw new Error("Scenario import requires TXT content");
+  }
+}
+
+export function validateSetEstadoPozosLargeImportPayload(
+  payload: SetEstadoPozosLargeImportPayload,
+): void {
+  if (!payload.proyectoId?.trim()) {
+    throw new Error("Set Estado Pozos import requires proyectoId");
+  }
+  if (!payload.nombreSetEstadoPozos?.trim()) {
+    throw new Error("Set Estado Pozos import requires nombreSetEstadoPozos");
+  }
+  if (!payload.filePath?.trim()) {
+    throw new Error("Set Estado Pozos import requires filePath");
   }
 }

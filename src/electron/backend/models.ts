@@ -141,6 +141,9 @@ export interface SetEstadoPozosDetalle {
   id: ID;
   setEstadoPozosId: ID;
   pozoId: ID;
+  capaId: ID | null;
+  capaScopeKey: string;
+  fecha: string;
   tipoEstadoPozoId: ID;
   createdAt: string;
   updatedAt: string;
@@ -284,3 +287,5 @@ export interface BackendBootstrapStatus {
   databasePath: string;
   entityCounts: Record<string, number>;
 }
+
+

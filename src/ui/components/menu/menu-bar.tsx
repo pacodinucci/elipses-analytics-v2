@@ -1,4 +1,4 @@
-// src/components/menu/menu-bar.tsx
+﻿// src/components/menu/menu-bar.tsx
 import { useState } from "react";
 import { ProyectoMenu } from "./proyecto-menu";
 import { VerMenu } from "./ver-menu";
@@ -10,6 +10,8 @@ type CapasBarPosition = "top" | "left";
 type MenuBarProps = {
   onAbrirProyecto: () => void;
   onOpenImportar: () => void;
+  onOpenUnidades: () => void;
+  canConfigureUnidades: boolean;
 
   showWindowMapa: boolean;
   showWindowTabla: boolean;
@@ -30,6 +32,8 @@ type MenuBarProps = {
 export function MenuBar({
   onAbrirProyecto,
   onOpenImportar,
+  onOpenUnidades,
+  canConfigureUnidades,
 
   showWindowMapa,
   showWindowTabla,
@@ -55,6 +59,8 @@ export function MenuBar({
       <ProyectoMenu
         onAbrirProyecto={onAbrirProyecto}
         onOpenImportar={onOpenImportar}
+        onOpenUnidades={onOpenUnidades}
+        canConfigureUnidades={canConfigureUnidades}
         isOpen={openMenu === "proyecto"}
         isAnyOpen={isAnyOpen}
         onClickTitle={() =>

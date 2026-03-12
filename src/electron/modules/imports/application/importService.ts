@@ -1,11 +1,14 @@
 // src/electron/modules/imports/application/importService.ts
 import { randomUUID } from "node:crypto";
+import fs from "node:fs";
+import readline from "node:readline";
 import { migrations } from "../../../shared/db/migrations.js";
 import { databaseService } from "../../../shared/db/index.js";
 import { coreDataService } from "../../core-data/application/coreDataService.js";
 import { mapService } from "../../maps/application/mapService.js";
 import { scenarioService } from "../../scenarios/application/scenarioService.js";
 import { scenarioValueService } from "../../scenario-values/application/scenarioValueService.js";
+import { wellStatesService } from "../../well-states/application/wellStatesService.js";
 
 import type {
   CapaTxtImportPayload,
@@ -15,6 +18,10 @@ import type {
   MapImportPayload,
   MapImportRow,
   PozoTxtImportPayload,
+  SetEstadoPozosLargeCommitResult,
+  SetEstadoPozosLargeImportPayload,
+  SetEstadoPozosLargeProgress,
+  SetEstadoPozosLargeUnresolvedRow,
   ScenarioTxtImportPayload,
 } from "../domain/importJob.js";
 
@@ -22,11 +29,14 @@ import {
   validateCapaTxtImportPayload,
   validateMapImportPayload,
   validatePozoTxtImportPayload,
+  validateSetEstadoPozosLargeImportPayload,
   validateScenarioTxtImportPayload,
 } from "../domain/importJob.js";
 
 import { ImportJobRepository } from "../infrastructure/importJobRepository.js";
 
+const SET_ESTADO_UNRESOLVED_SAMPLE_MAX = 20000;
+const SET_ESTADO_INSERT_BATCH_SIZE = 2000;
 function emptySummary(totalRows: number): ImportJobSummary {
   return {
     totalRows,
@@ -70,6 +80,18 @@ function normalizeScenarioDate(raw: string): string | null {
   // YYYY-MM-DD
   if (isValidISODate(value)) {
     return value;
+  }
+  // DD/MM/YYYY o D/M/YYYY
+  const dayMonthYearMatch = value.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{4})$/);
+  if (dayMonthYearMatch) {
+    const day = Number(dayMonthYearMatch[1]);
+    const month = Number(dayMonthYearMatch[2]);
+    const year = Number(dayMonthYearMatch[3]);
+
+    if (day >= 1 && day <= 31 && month >= 1 && month <= 12) {
+      const normalized = `${String(year).padStart(4, "0")}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+      return isValidISODate(normalized) ? normalized : null;
+    }
   }
 
   // YYYY-MM
@@ -1051,6 +1073,480 @@ export class ImportService {
     return { rows: resolvedRows, summary, errors };
   }
 
+
+  async commitSetEstadoPozosLargeImport(
+    payload: SetEstadoPozosLargeImportPayload,
+    onProgress?: (progress: SetEstadoPozosLargeProgress) => void,
+  ): Promise<SetEstadoPozosLargeCommitResult> {
+    validateSetEstadoPozosLargeImportPayload(payload);
+    await this.ensureSchema();
+    await wellStatesService.ensureDefaultTiposEstadoPozo();
+
+    if (!fs.existsSync(payload.filePath)) {
+      throw new Error(`Archivo no encontrado: ${payload.filePath}`);
+    }
+
+    const totalBytes = Number(fs.statSync(payload.filePath).size || 0);
+    let processedBytes = 0;
+    let lastProgressTs = 0;
+    let totalRows = 0;
+    let unresolvedRows = 0;
+
+    const emitProgress = (phase: SetEstadoPozosLargeProgress["phase"], force = false) => {
+      const now = Date.now();
+      if (!force && phase === "processing" && now - lastProgressTs < 250) return;
+      lastProgressTs = now;
+      try {
+        onProgress?.({
+          requestId: payload.requestId,
+          phase,
+          totalBytes,
+          processedBytes: Math.min(processedBytes, totalBytes),
+          processedRows: totalRows,
+          unresolvedRows,
+        });
+      } catch {
+        // ignore progress callback failures
+      }
+    };
+
+    emitProgress("starting", true);
+
+    const normalizeCell = (raw: unknown): string =>
+      String(raw ?? "")
+        .replace(/\u0000/g, "")
+        .replace(/[\u200B-\u200F\u202A-\u202E\u2060\uFEFF]/g, "")
+        .replace(/[\u2010-\u2015\u2212]/g, "-")
+        .replace(/\u00A0/g, " ")
+        .trim();
+
+    const countDelimiter = (line: string, delimiter: string): number => {
+      let count = 0;
+      let inQuotes = false;
+      for (let i = 0; i < line.length; i += 1) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            i += 1;
+          } else {
+            inQuotes = !inQuotes;
+          }
+          continue;
+        }
+        if (!inQuotes && ch === delimiter) count += 1;
+      }
+      return count;
+    };
+
+    const detectDelimiter = (line: string): string | null => {
+      const candidates = [",", ";", "\t"] as const;
+      let best: string | null = null;
+      let bestScore = 0;
+      for (const c of candidates) {
+        const score = countDelimiter(line, c);
+        if (score > bestScore) {
+          bestScore = score;
+          best = c;
+        }
+      }
+      return bestScore > 0 ? best : null;
+    };
+
+    const splitDelimited = (line: string, delimiter: string): string[] => {
+      const out: string[] = [];
+      let token = "";
+      let inQuotes = false;
+
+      for (let i = 0; i < line.length; i += 1) {
+        const ch = line[i];
+        if (ch === '"') {
+          if (inQuotes && line[i + 1] === '"') {
+            token += '"';
+            i += 1;
+          } else {
+            inQuotes = !inQuotes;
+          }
+          continue;
+        }
+
+        if (!inQuotes && ch === delimiter) {
+          out.push(normalizeCell(token));
+          token = "";
+          continue;
+        }
+
+        token += ch;
+      }
+
+      out.push(normalizeCell(token));
+      return out;
+    };
+
+    const normalizeHeader = (
+      raw: string,
+    ): "pozo" | "capa" | "fecha" | "estado" | "__ignore__" => {
+      const key = raw
+        .replace(/^\uFEFF/, "")
+        .trim()
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/\p{Diacritic}/gu, "")
+        .replace(/\s+/g, "")
+        .replace(/[^a-z0-9_]/g, "");
+      if (key === "pozo" || key === "well") return "pozo";
+      if (key === "capa" || key === "layer") return "capa";
+      if (key === "fecha" || key === "date") return "fecha";
+      if (
+        key === "estado" ||
+        key === "status" ||
+        key === "tipoestado" ||
+        key === "tipo_estado" ||
+        key === "tipoestadopozo"
+      ) {
+        return "estado";
+      }
+      return "__ignore__";
+    };
+
+    const existingSets = await databaseService.readAll(
+      `SELECT id, nombre FROM SetEstadoPozos WHERE proyectoId = ?`,
+      [payload.proyectoId],
+    );
+    const wantedName = payload.nombreSetEstadoPozos.trim();
+
+    const sameNameSet = existingSets.find(
+      (s) =>
+        String(s.nombre ?? "").trim().toLowerCase() ===
+        wantedName.toLowerCase(),
+    );
+
+    const setEstadoPozosId = sameNameSet
+      ? String(sameNameSet.id)
+      : (
+          await wellStatesService.createSetEstadoPozos({
+            id: randomUUID(),
+            proyectoId: payload.proyectoId,
+            simulacionId: null,
+            nombre: wantedName,
+          })
+        ).id;
+
+    const tipos = await wellStatesService.listTiposEstadoPozo();
+    const tipoByNombre = new Map<string, string>();
+    for (const t of tipos) {
+      tipoByNombre.set(String(t.nombre).trim().toLowerCase(), String(t.id));
+    }
+
+    const pozoRows = await databaseService.readAll(
+      `SELECT id, nombre FROM Pozo WHERE proyectoId = ?`,
+      [payload.proyectoId],
+    );
+    const capaRows = await databaseService.readAll(
+      `SELECT id, nombre FROM Capa WHERE proyectoId = ?`,
+      [payload.proyectoId],
+    );
+
+    const pozoByNombre = new Map<string, string>();
+    for (const p of pozoRows) {
+      pozoByNombre.set(normalizeKey(String(p.nombre ?? "")), String(p.id));
+    }
+
+    const capaByNombre = new Map<string, string>();
+    for (const c of capaRows) {
+      capaByNombre.set(normalizeKey(String(c.nombre ?? "")), String(c.id));
+    }
+
+    const unresolvedSample: SetEstadoPozosLargeUnresolvedRow[] = [];
+    const previewRows: Array<{ rowNumber: number; cells: string[] }> = [];
+    const pendingRows: Array<{
+      id: string;
+      setEstadoPozosId: string;
+      pozoId: string;
+      capaId: string;
+      capaScopeKey: string;
+      fecha: string;
+      tipoEstadoPozoId: string;
+    }> = [];
+
+    const initialRowCount = Number(
+      (
+        (await databaseService.readAll(
+                    `SELECT COUNT(*) AS c FROM SetEstadoPozosDetalle WHERE setEstadoPozosId = ?`,
+          [setEstadoPozosId],
+        ))[0]
+      )?.c ?? 0,
+    );
+
+    totalRows = 0;
+    unresolvedRows = 0;
+
+    let delimiter: string | null = null;
+    let colPozo = -1;
+    let colCapa = -1;
+    let colFecha = -1;
+    let colEstado = -1;
+
+    let headerReady = false;
+    let headerSearchLines = 0;
+
+    const detectFileEncoding = (): BufferEncoding => {
+      const sampleSize = 512;
+      const fd = fs.openSync(payload.filePath, "r");
+      const sample = Buffer.alloc(sampleSize);
+      let bytesRead = 0;
+      try {
+        bytesRead = fs.readSync(fd, sample, 0, sampleSize, 0);
+      } finally {
+        fs.closeSync(fd);
+      }
+
+      if (bytesRead >= 3) {
+        if (sample[0] === 0xef && sample[1] === 0xbb && sample[2] === 0xbf) {
+          return "utf8";
+        }
+      }
+      if (bytesRead >= 2) {
+        if (
+          (sample[0] === 0xff && sample[1] === 0xfe) ||
+          (sample[0] === 0xfe && sample[1] === 0xff)
+        ) {
+          return "utf16le";
+        }
+      }
+
+      let zeroAtEven = 0;
+      let zeroAtOdd = 0;
+      const inspect = Math.min(bytesRead, 200);
+      for (let i = 0; i < inspect; i += 1) {
+        if (sample[i] !== 0x00) continue;
+        if (i % 2 === 0) zeroAtEven += 1;
+        else zeroAtOdd += 1;
+      }
+
+      if (zeroAtEven > 20 || zeroAtOdd > 20) {
+        return "utf16le";
+      }
+
+      return "utf8";
+    };
+
+    const fileEncoding = detectFileEncoding();
+    const stream = fs.createReadStream(payload.filePath, {
+      encoding: fileEncoding,
+    });
+    stream.on("data", (chunk: string | Buffer) => {
+      if (typeof chunk === "string") {
+        processedBytes += Buffer.byteLength(chunk, fileEncoding);
+      } else {
+        processedBytes += chunk.byteLength;
+      }
+      emitProgress("processing");
+    });
+
+    const rl = readline.createInterface({
+      input: stream,
+      crlfDelay: Number.POSITIVE_INFINITY,
+    });
+
+    let physicalLine = 0;
+
+    await databaseService.run("BEGIN TRANSACTION");
+
+    try {
+      for await (const rawLine of rl) {
+        physicalLine += 1;
+        const line = normalizeCell(rawLine);
+        if (!line) continue;
+
+        if (!headerReady) {
+          const lowerLine = line.trim().toLowerCase();
+          if (lowerLine.startsWith("sep=")) continue;
+
+          headerSearchLines += 1;
+          delimiter = detectDelimiter(line);
+          const headerTokens = delimiter
+            ? splitDelimited(line, delimiter)
+            : line.split(/\s+/).map((x) => normalizeCell(x));
+
+          const normalizedHeader = headerTokens.map((h) => normalizeHeader(h));
+          colPozo = normalizedHeader.findIndex((h) => h === "pozo");
+          colCapa = normalizedHeader.findIndex((h) => h === "capa");
+          colFecha = normalizedHeader.findIndex((h) => h === "fecha");
+          colEstado = normalizedHeader.findIndex((h) => h === "estado");
+
+          if (colPozo < 0 || colCapa < 0 || colFecha < 0 || colEstado < 0) {
+            if (headerSearchLines <= 50) {
+              continue;
+            }
+
+            // Fallback defensivo: si no detecta header por nombre,
+            // asume orden posicional pozo,capa,fecha,estado.
+            if (headerTokens.length >= 4) {
+              colPozo = 0;
+              colCapa = 1;
+              colFecha = 2;
+              colEstado = 3;
+              headerReady = true;
+            } else {
+              throw new Error(
+                "Archivo invalido: se requieren columnas pozo, capa, fecha y estado.",
+              );
+            }
+          } else {
+            headerReady = true;
+            continue;
+          }
+        }
+
+        const tokens = delimiter
+          ? splitDelimited(line, delimiter)
+          : line.split(/\s+/).map((x) => normalizeCell(x));
+
+        const pozo = normalizeCell(tokens[colPozo] ?? "").toUpperCase();
+        const capa = normalizeCell(tokens[colCapa] ?? "").toUpperCase();
+        const fechaRaw = normalizeCell(tokens[colFecha] ?? "");
+        const estado = normalizeCell(tokens[colEstado] ?? "");
+
+        if (previewRows.length < 100) {
+          previewRows.push({
+            rowNumber: physicalLine,
+            cells: [pozo, capa, fechaRaw, estado],
+          });
+        }
+
+        totalRows += 1;
+
+        const problems: string[] = [];
+        const fecha = normalizeScenarioDate(fechaRaw);
+        if (!pozo) problems.push("pozo vacio");
+        if (!capa) problems.push("capa vacia");
+        if (!fecha) problems.push("fecha invalida");
+        if (!["-1", "0", "1", "2"].includes(estado)) {
+          problems.push("estado invalido");
+        }
+
+        const pozoId = pozoByNombre.get(normalizeKey(pozo)) ?? null;
+        if (!pozoId) problems.push("pozo no existe en proyecto");
+
+        const capaId = capaByNombre.get(normalizeKey(capa)) ?? null;
+        if (!capaId) problems.push("capa no existe en proyecto");
+
+        const tipoEstadoPozoId = tipoByNombre.get(estado.toLowerCase()) ?? null;
+        if (!tipoEstadoPozoId) problems.push("tipo estado no existe");
+
+        if (
+          problems.length > 0 ||
+          !pozoId ||
+          !capaId ||
+          !fecha ||
+          !tipoEstadoPozoId
+        ) {
+          unresolvedRows += 1;
+          if (unresolvedSample.length < SET_ESTADO_UNRESOLVED_SAMPLE_MAX) {
+            unresolvedSample.push({
+              rowNumber: physicalLine,
+              pozo,
+              capa,
+              fecha: fechaRaw,
+              estado,
+              reason: problems.join(", "),
+            });
+          }
+          continue;
+        }
+
+        pendingRows.push({
+          id: randomUUID(),
+          setEstadoPozosId,
+          pozoId,
+          capaId,
+          capaScopeKey: capaId,
+          fecha,
+          tipoEstadoPozoId,
+        });
+
+        if (pendingRows.length >= SET_ESTADO_INSERT_BATCH_SIZE) {
+          await flushPendingRows();
+        }
+      }
+
+      await flushPendingRows();
+      await databaseService.run("COMMIT");
+    } catch (error) {
+      try {
+        await databaseService.run("ROLLBACK");
+      } catch {
+        // noop
+      }
+      throw error;
+    }
+
+    async function flushPendingRows(): Promise<void> {
+      if (pendingRows.length === 0) return;
+
+      const now = new Date().toISOString();
+      const placeholders: string[] = [];
+      const params: unknown[] = [];
+
+      for (const row of pendingRows) {
+        placeholders.push("(?, ?, ?, ?, ?, ?, ?, ?, ?, '{}')");
+        params.push(
+          row.id,
+          row.setEstadoPozosId,
+          row.pozoId,
+          row.capaId,
+          row.capaScopeKey,
+          row.fecha,
+          row.tipoEstadoPozoId,
+          now,
+          now,
+        );
+      }
+
+      await databaseService.run(
+        `INSERT INTO SetEstadoPozosDetalle (
+          id,
+          setEstadoPozosId,
+          pozoId,
+          capaId,
+          capaScopeKey,
+          fecha,
+          tipoEstadoPozoId,
+          createdAt,
+          updatedAt,
+          extrasJson
+        ) VALUES ${placeholders.join(", ")}
+        ON CONFLICT(setEstadoPozosId, pozoId, capaScopeKey, fecha) DO NOTHING`,
+        params,
+      );
+
+      pendingRows.length = 0;
+    }
+    emitProgress("finalizing", true);
+
+    const finalRowCount = Number(
+      (
+        (await databaseService.readAll(
+                    `SELECT COUNT(*) AS c FROM SetEstadoPozosDetalle WHERE setEstadoPozosId = ?`,
+          [setEstadoPozosId],
+        ))[0]
+      )?.c ?? 0,
+    );
+
+    emitProgress("done", true);
+
+    return {
+      ok: true,
+      setEstadoPozosId,
+      totalRows,
+      insertedRows: Math.max(0, finalRowCount - initialRowCount),
+      unresolvedRows,
+      unresolvedSample,
+      previewRows,
+      unresolvedSampleTruncated:
+        unresolvedRows > unresolvedSample.length,
+    };
+  }
   private async ensureSchema(): Promise<void> {
     if (this.schemaReady) return;
     await databaseService.applyMigrations(migrations);
@@ -1059,3 +1555,9 @@ export class ImportService {
 }
 
 export const importService = new ImportService();
+
+
+
+
+
+

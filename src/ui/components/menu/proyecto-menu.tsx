@@ -1,9 +1,11 @@
-// src/components/menu/proyecto-menu.tsx
+﻿// src/components/menu/proyecto-menu.tsx
 import "./proyecto-menu.css";
 
 type ProyectoMenuProps = {
   onAbrirProyecto: () => void;
   onOpenImportar: () => void;
+  onOpenUnidades: () => void;
+  canConfigureUnidades: boolean;
 
   isOpen: boolean;
   isAnyOpen: boolean;
@@ -15,6 +17,8 @@ type ProyectoMenuProps = {
 export function ProyectoMenu({
   onAbrirProyecto,
   onOpenImportar,
+  onOpenUnidades,
+  canConfigureUnidades,
   isOpen,
   onClickTitle,
   onHoverTitle,
@@ -74,15 +78,40 @@ export function ProyectoMenu({
           <Separator />
 
           <MenuItem label="Importar" onClick={() => handle(onOpenImportar)} />
+
+          <div className="proyectoMenu__submenuTrigger">
+            <span>{"Configuraci\u00f3n"}</span>
+            <span className="proyectoMenu__submenuChevron">{">"}</span>
+
+            <div className="proyectoMenu__submenu">
+              <MenuItem
+                label="Unidades"
+                onClick={() => handle(onOpenUnidades)}
+                disabled={!canConfigureUnidades}
+              />
+            </div>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function MenuItem({ label, onClick }: { label: string; onClick: () => void }) {
+function MenuItem({
+  label,
+  onClick,
+  disabled = false,
+}: {
+  label: string;
+  onClick: () => void;
+  disabled?: boolean;
+}) {
   return (
-    <div className="proyectoMenu__item" onClick={onClick}>
+    <div
+      className={["proyectoMenu__item", disabled ? "is-disabled" : ""].join(" ")}
+      onClick={disabled ? undefined : onClick}
+      aria-disabled={disabled}
+    >
       {label}
     </div>
   );

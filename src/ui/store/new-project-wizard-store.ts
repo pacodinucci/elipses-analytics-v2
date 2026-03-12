@@ -35,7 +35,6 @@ type FieldKeyByEntity = {
   PozoCapa: PozoCapaFieldKey;
   Escenario: EscenarioFieldKey;
 };
-
 type Ignore = "__ignore__";
 type ColumnMapping<E extends ImportEntity> = FieldKeyByEntity[E] | Ignore;
 
@@ -94,7 +93,7 @@ type NewProjectWizardState = {
       | ColumnMapping<"Capa">
       | ColumnMapping<"Pozo">
       | ColumnMapping<"PozoCapa">
-      | ColumnMapping<"Escenario">,
+      | ColumnMapping<"Escenario">
   ) => void;
 
   setImportCell: (
@@ -318,7 +317,6 @@ function autoMappingForEntity(entity: ImportEntity, columns: string[]) {
     return "__ignore__";
   });
 }
-
 function getEffectiveMapping<E extends ImportEntity>(
   mapping: ColumnMapping<E>[],
   selectedCols: boolean[],
@@ -352,7 +350,7 @@ function validateMapping(entity: ImportEntity, mapping: Array<string>) {
 
   if (entity === "Capa") {
     if (!mapped.has("nombre")) {
-      errs.push("Tenés que mapear al menos una columna a 'Nombre'.");
+      errs.push("Tenes que mapear al menos una columna a 'Nombre'.");
     }
   }
 
@@ -387,7 +385,7 @@ function validateMapping(entity: ImportEntity, mapping: Array<string>) {
 
     if (!hasMetric) {
       errs.push(
-        "Tenés que mapear al menos una métrica: petroleo / agua / gas / inyeccionGas / inyeccionAgua.",
+        "Tenes que mapear al menos una metrica: petroleo / agua / gas / inyeccionGas / inyeccionAgua.",
       );
     }
   }
@@ -398,12 +396,11 @@ function validateMapping(entity: ImportEntity, mapping: Array<string>) {
     counts.set(m, (counts.get(m) ?? 0) + 1);
   }
   for (const [k, v] of counts.entries()) {
-    if (v > 1) errs.push(`El campo '${k}' está asignado ${v} veces. Solo una.`);
+    if (v > 1) errs.push(`El campo '${k}' esta asignado ${v} veces. Solo una.`);
   }
 
   return errs;
 }
-
 function toNumberFlexible(value: string): number {
   const normalized = (value ?? "").replace(",", ".").trim();
   return Number(normalized);
@@ -499,8 +496,8 @@ function validateRows(
 
       const x = toNumberFlexible(xStr);
       const y = toNumberFlexible(yStr);
-      if (!Number.isFinite(x)) errs.push("x debe ser numérico");
-      if (!Number.isFinite(y)) errs.push("y debe ser numérico");
+      if (!Number.isFinite(x)) errs.push("x debe ser numerico");
+      if (!Number.isFinite(y)) errs.push("y debe ser numerico");
     }
 
     if (entity === "PozoCapa") {
@@ -514,8 +511,8 @@ function validateRows(
 
       const tope = toNumberFlexible(topeStr);
       const base = toNumberFlexible(baseStr);
-      if (!Number.isFinite(tope)) errs.push("tope debe ser numérico");
-      if (!Number.isFinite(base)) errs.push("base debe ser numérico");
+      if (!Number.isFinite(tope)) errs.push("tope debe ser numerico");
+      if (!Number.isFinite(base)) errs.push("base debe ser numerico");
       if (Number.isFinite(tope) && Number.isFinite(base) && base < tope) {
         errs.push("base debe ser >= tope");
       }
@@ -548,22 +545,22 @@ function validateRows(
         colInyAgua >= 0 ? String(row.cells[colInyAgua] ?? "").trim() : "";
 
       const metrics = [petroleo, agua, gas, inyGas, inyAgua];
-      if (metrics.every((m) => !m)) errs.push("Al menos una métrica requerida");
+      if (metrics.every((m) => !m)) errs.push("Al menos una metrica requerida");
 
       if (petroleo && !Number.isFinite(toNumberFlexible(petroleo))) {
-        errs.push("petroleo debe ser numérico");
+        errs.push("petroleo debe ser numerico");
       }
       if (agua && !Number.isFinite(toNumberFlexible(agua))) {
-        errs.push("agua debe ser numérico");
+        errs.push("agua debe ser numerico");
       }
       if (gas && !Number.isFinite(toNumberFlexible(gas))) {
-        errs.push("gas debe ser numérico");
+        errs.push("gas debe ser numerico");
       }
       if (inyGas && !Number.isFinite(toNumberFlexible(inyGas))) {
-        errs.push("inyeccionGas debe ser numérico");
+        errs.push("inyeccionGas debe ser numerico");
       }
       if (inyAgua && !Number.isFinite(toNumberFlexible(inyAgua))) {
-        errs.push("inyeccionAgua debe ser numérico");
+        errs.push("inyeccionAgua debe ser numerico");
       }
 
       const key =
@@ -571,7 +568,7 @@ function validateRows(
           ? `${pozo.toLowerCase()}::${capa.toLowerCase()}::${fecha}`
           : "";
       if (key) {
-        if (seen.has(key)) errs.push("Duplicado lógico en filas seleccionadas");
+        if (seen.has(key)) errs.push("Duplicado logico en filas seleccionadas");
         else seen.add(key);
       }
     }
@@ -581,7 +578,6 @@ function validateRows(
 
   return rowErrors;
 }
-
 function buildCapasContentFromState(state: ImportTableState<"Capa">): string {
   const effMapping = getEffectiveMapping(state.mapping, state.selectedCols);
   const colNombre = effMapping.findIndex((m) => m === "nombre");
@@ -1244,7 +1240,6 @@ export const useNewProjectWizardStore = create<NewProjectWizardState>(
         set({ scenarioImport: emptyImportState("Escenario") });
       }
     },
-
     setLoading: (loading) => set({ loading }),
     setError: (error) => set({ error }),
 
@@ -1269,3 +1264,13 @@ export const useNewProjectWizardStore = create<NewProjectWizardState>(
       }),
   }),
 );
+
+
+
+
+
+
+
+
+
+

@@ -14,6 +14,8 @@ export interface CreateSetEstadoPozosDetalleInput {
   id: string;
   setEstadoPozosId: string;
   pozoId: string;
+  capaId: string | null;
+  fecha: string;
   tipoEstadoPozoId: string;
 }
 
@@ -55,5 +57,7 @@ export function validateCreateSetEstadoPozosDetalleInput(
   requireString(input.id, "id");
   requireString(input.setEstadoPozosId, "setEstadoPozosId");
   requireString(input.pozoId, "pozoId");
+  input.capaId = optionalNullableString(input.capaId);
+  requireString(input.fecha, "fecha");
   requireString(input.tipoEstadoPozoId, "tipoEstadoPozoId");
 }

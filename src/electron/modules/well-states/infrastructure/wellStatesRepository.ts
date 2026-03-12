@@ -38,6 +38,9 @@ function mapDetalle(row: Record<string, unknown>): SetEstadoPozosDetalle {
     id: String(row.id),
     setEstadoPozosId: String(row.setEstadoPozosId),
     pozoId: String(row.pozoId),
+    capaId: row.capaId == null ? null : String(row.capaId),
+    capaScopeKey: String(row.capaScopeKey),
+    fecha: String(row.fecha),
     tipoEstadoPozoId: String(row.tipoEstadoPozoId),
     createdAt: String(row.createdAt),
     updatedAt: String(row.updatedAt),
@@ -108,15 +111,19 @@ export class WellStatesRepository {
     input: CreateSetEstadoPozosDetalleInput,
   ): Promise<SetEstadoPozosDetalle> {
     const now = new Date().toISOString();
+    const capaScopeKey = input.capaId ? input.capaId : "__NO_CAPA__";
 
     await databaseService.run(
       `INSERT INTO SetEstadoPozosDetalle (
-        id, setEstadoPozosId, pozoId, tipoEstadoPozoId, createdAt, updatedAt
-      ) VALUES (?, ?, ?, ?, ?, ?)`,
+        id, setEstadoPozosId, pozoId, capaId, capaScopeKey, fecha, tipoEstadoPozoId, createdAt, updatedAt
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         input.id,
         input.setEstadoPozosId,
         input.pozoId,
+        input.capaId,
+        capaScopeKey,
+        input.fecha,
         input.tipoEstadoPozoId,
         now,
         now,
@@ -124,7 +131,7 @@ export class WellStatesRepository {
     );
 
     const rows = await databaseService.readAll(
-      `SELECT id, setEstadoPozosId, pozoId, tipoEstadoPozoId, createdAt, updatedAt
+      `SELECT id, setEstadoPozosId, pozoId, capaId, capaScopeKey, fecha, tipoEstadoPozoId, createdAt, updatedAt
        FROM SetEstadoPozosDetalle WHERE id = ? LIMIT 1`,
       [input.id],
     );
@@ -140,8 +147,8 @@ export class WellStatesRepository {
     setEstadoPozosId: string,
   ): Promise<SetEstadoPozosDetalle[]> {
     const rows = await databaseService.readAll(
-      `SELECT id, setEstadoPozosId, pozoId, tipoEstadoPozoId, createdAt, updatedAt
-       FROM SetEstadoPozosDetalle WHERE setEstadoPozosId = ? ORDER BY createdAt ASC`,
+      `SELECT id, setEstadoPozosId, pozoId, capaId, capaScopeKey, fecha, tipoEstadoPozoId, createdAt, updatedAt
+       FROM SetEstadoPozosDetalle WHERE setEstadoPozosId = ? ORDER BY fecha ASC, createdAt ASC`,
       [setEstadoPozosId],
     );
     return rows.map(mapDetalle);

@@ -107,6 +107,13 @@ declare global {
   type ScenarioTxtImportPayload =
     import("./src/electron/modules/imports/domain/importJob.js").ScenarioTxtImportPayload;
 
+  type SetEstadoPozosLargeImportPayload =
+    import("./src/electron/modules/imports/domain/importJob.js").SetEstadoPozosLargeImportPayload;
+  type SetEstadoPozosLargeCommitResult =
+    import("./src/electron/modules/imports/domain/importJob.js").SetEstadoPozosLargeCommitResult;
+  type SetEstadoPozosLargeProgress =
+    import("./src/electron/modules/imports/domain/importJob.js").SetEstadoPozosLargeProgress;
+
   type UpsertMapInput =
     import("./src/electron/modules/maps/domain/map.js").UpsertMapInput;
 
@@ -296,6 +303,8 @@ declare global {
     // ✅ NUEVO
     importEscenariosDryRun: ImportJobResult;
     importEscenariosCommit: ImportJobResult;
+    importSetEstadoPozosLargeCommit: SetEstadoPozosLargeCommitResult;
+    importSetEstadoPozosLargeProgress: SetEstadoPozosLargeProgress;
 
     productionCreate: Produccion;
     productionListByProject: Produccion[];
@@ -361,6 +370,10 @@ declare global {
         callback: (statistics: Statistics) => void,
       ) => Unsubscribe;
       getStaticData: () => Promise<StaticData>;
+      getPathForFile: (file: File) => string | null;
+      subscribeImportSetEstadoPozosLargeProgress: (
+        callback: (progress: SetEstadoPozosLargeProgress) => void,
+      ) => Unsubscribe;
 
       backendGetTruthRegistry: () => Promise<BackendTruthRegistry>;
       backendInitSchema: () => Promise<BackendBootstrapStatus>;
@@ -414,6 +427,9 @@ declare global {
       importEscenariosCommit: (
         payload: ScenarioTxtImportPayload,
       ) => Promise<ImportJobResult>;
+      importSetEstadoPozosLargeCommit: (
+        payload: SetEstadoPozosLargeImportPayload,
+      ) => Promise<SetEstadoPozosLargeCommitResult>;
 
       productionCreate: (payload: CreateProduccionInput) => Promise<Produccion>;
       productionListByProject: (payload: {
@@ -527,3 +543,7 @@ declare global {
     };
   }
 }
+
+
+
+

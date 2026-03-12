@@ -1,8 +1,7 @@
-// src/App.tsx
+﻿// src/App.tsx
 import { useEffect, useState } from "react";
 import "./App.css";
 
-// Layout + UI
 import AppLayout from "./components/layout/app-layout";
 import { SelectProjectModal } from "./components/project/select-project-modal";
 import { NewProjectModal } from "./components/project/new-project-modal";
@@ -10,16 +9,15 @@ import { ProyectoCapasBar } from "./components/project/project-capas-bar";
 import { DatosMapaFloatingWindow } from "./components/mapa/datos-mapa-floating-window";
 import { FullScreenLoader } from "./components/layout/fullscreen-loader";
 import { ImportModal } from "./components/import/import-modal";
+import { UnidadesModal } from "./components/project/unidades-modal";
 import { ViewerFloatingWindow } from "./components/viewer/viewer-floating-window";
 import { ProduccionFloatingWindow } from "./components/produccion/produccion-floating-window";
 
-// Hooks / Store
 import { useProyectos } from "./hooks/use-proyectos";
 import { useSelectionStore } from "./store/selection-store";
 import { useViewerElipsesStore } from "./store/viewer-elipses-store";
 import { useCapas } from "./hooks/use-capas";
 
-// Start screen
 import { ProjectYacimientoStartScreen } from "./components/project/project-yacimiento-start-screen";
 
 type CapasBarPosition = "top" | "left";
@@ -27,63 +25,45 @@ type CapasBarPosition = "top" | "left";
 const ENABLE_ELIPSES_LOADING_BLOCK = false;
 
 function App() {
-  const [selectedProyecto, setSelectedProyecto] = useState<Proyecto | null>(
-    null,
-  );
-
+  const [selectedProyecto, setSelectedProyecto] = useState<Proyecto | null>(null);
   const [selectedCapaName, setSelectedCapaName] = useState<string | null>(null);
+  const [activeWindow, setActiveWindow] = useState<"mapa" | "tabla" | "datosMapa" | "viewer" | null>("tabla");
 
-  const [activeWindow, setActiveWindow] = useState<
-    "mapa" | "tabla" | "datosMapa" | "viewer" | null
-  >("tabla");
-
-  const [isSelectProjectModalOpen, setIsSelectProjectModalOpen] =
-    useState(false);
+  const [isSelectProjectModalOpen, setIsSelectProjectModalOpen] = useState(false);
   const [isNewProjectModalOpen, setIsNewProjectModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isUnidadesModalOpen, setIsUnidadesModalOpen] = useState(false);
 
   const [showWindowMapa, setShowWindowMapa] = useState(true);
   const [showWindowTabla, setShowWindowTabla] = useState(true);
   const [showWindowDatosMapa, setShowWindowDatosMapa] = useState(true);
 
   const [showCapasBar, setShowCapasBar] = useState(true);
-  const [capasBarPosition, setCapasBarPosition] =
-    useState<CapasBarPosition>("top");
-
+  const [capasBarPosition, setCapasBarPosition] = useState<CapasBarPosition>("top");
   const [isBootLoading, setIsBootLoading] = useState(true);
 
   const setProyectoId = useSelectionStore((s) => s.setSelectedProyectoId);
-
   const loadAllElipses = useViewerElipsesStore((s) => s.loadAll);
   const resetElipses = useViewerElipsesStore((s) => s.reset);
 
   const elipsesLoading = useViewerElipsesStore((s) => s.loading);
   const elipsesError = useViewerElipsesStore((s) => s.error);
   const elipsesIsReady = useViewerElipsesStore((s) => s.isReady());
-
   const elipsesByCapa = useViewerElipsesStore((s) => s.byCapa);
   const totalCapas = useViewerElipsesStore((s) => s.totalCapas);
   const loadedCapas = useViewerElipsesStore((s) => s.loadedCapas);
 
   const proyectoId = selectedProyecto?.id ?? null;
-
-  const {
-    capas,
-    loading: capasLoading,
-    error: capasError,
-  } = useCapas(proyectoId);
+  const { capas, loading: capasLoading, error: capasError } = useCapas(proyectoId);
 
   useEffect(() => {
-    if (selectedProyecto) {
-      setShowWindowMapa(true);
-      setShowWindowTabla(true);
-      setShowWindowDatosMapa(true);
-
-      setShowCapasBar(true);
-      setCapasBarPosition("top");
-
-      setActiveWindow("mapa");
-    }
+    if (!selectedProyecto) return;
+    setShowWindowMapa(true);
+    setShowWindowTabla(true);
+    setShowWindowDatosMapa(true);
+    setShowCapasBar(true);
+    setCapasBarPosition("top");
+    setActiveWindow("mapa");
   }, [selectedProyecto?.id]);
 
   const { proyectos, loading, error, fetchProyectos } = useProyectos();
@@ -93,64 +73,34 @@ function App() {
     setIsSelectProjectModalOpen(true);
   };
 
-  const handleCrearProyecto = () => {
-    setIsNewProjectModalOpen(true);
-  };
+  const handleCrearProyecto = () => setIsNewProjectModalOpen(true);
 
   const handleSelectProyecto = (proyecto: Proyecto) => {
     setSelectedProyecto(proyecto);
     setSelectedCapaName(null);
     setIsSelectProjectModalOpen(false);
-
     setProyectoId(proyecto.id);
     resetElipses();
   };
 
   useEffect(() => {
-    if (!selectedProyecto) return;
-    if (capasLoading) return;
-    if (capasError) return;
-    if (!capas || capas.length === 0) return;
-
-    if (!selectedCapaName) {
-      setSelectedCapaName(capas[0].nombre);
-    }
+    if (!selectedProyecto || capasLoading || capasError || !capas || capas.length === 0) return;
+    if (!selectedCapaName) setSelectedCapaName(capas[0].nombre);
   }, [selectedProyecto?.id, capasLoading, capasError, capas, selectedCapaName]);
 
   useEffect(() => {
-    if (!selectedProyecto) return;
-    if (capasLoading) return;
-    if (capasError) return;
-    if (!capas || capas.length === 0) return;
-
-    const capasNames = capas
-      .map((c: any) => String(c?.nombre ?? "").trim())
-      .filter(Boolean);
-
+    if (!selectedProyecto || capasLoading || capasError || !capas || capas.length === 0) return;
+    const capasNames = capas.map((c: any) => String(c?.nombre ?? "").trim()).filter(Boolean);
     if (capasNames.length === 0) return;
-
-    loadAllElipses({
-      proyectoId: selectedProyecto.id,
-      capas: capasNames,
-    });
-  }, [
-    selectedProyecto?.id,
-    capasLoading,
-    capasError,
-    capas,
-    loadAllElipses,
-    selectedProyecto,
-  ]);
+    loadAllElipses({ proyectoId: selectedProyecto.id, capas: capasNames });
+  }, [selectedProyecto?.id, capasLoading, capasError, capas, loadAllElipses, selectedProyecto]);
 
   useEffect(() => {
-    if (!selectedProyecto) return;
-    if (!elipsesIsReady) return;
-
+    if (!selectedProyecto || !elipsesIsReady) return;
     const keys = Object.keys(elipsesByCapa);
     const firstKey = keys[0];
     const firstElipses = firstKey ? (elipsesByCapa[firstKey] ?? []) : [];
-
-    console.log("✅ [viewer-elipses-store] READY", {
+    console.log("[viewer-elipses-store] READY", {
       proyectoId: selectedProyecto.id,
       capasCargadas: keys.length,
       firstKey,
@@ -160,7 +110,6 @@ function App() {
 
   useEffect(() => {
     let cancelled = false;
-
     (async () => {
       try {
         await fetchProyectos();
@@ -168,23 +117,15 @@ function App() {
         if (!cancelled) setIsBootLoading(false);
       }
     })();
-
     return () => {
       cancelled = true;
     };
   }, [fetchProyectos]);
 
-  if (isBootLoading) {
-    return <FullScreenLoader label="Inicializando Elipses..." />;
-  }
+  if (isBootLoading) return <FullScreenLoader label="Inicializando Elipses..." />;
 
   const hasCapas = !!capas && capas.length > 0;
-
-  const shouldBlockForElipses =
-    ENABLE_ELIPSES_LOADING_BLOCK &&
-    hasCapas &&
-    (elipsesLoading || !elipsesIsReady);
-
+  const shouldBlockForElipses = ENABLE_ELIPSES_LOADING_BLOCK && hasCapas && (elipsesLoading || !elipsesIsReady);
   const isWorkspaceReady = !!selectedProyecto;
 
   return (
@@ -192,6 +133,8 @@ function App() {
       <AppLayout
         onAbrirProyecto={handleAbrirProyecto}
         onOpenImportar={() => setIsImportModalOpen(true)}
+        onOpenUnidades={() => setIsUnidadesModalOpen(true)}
+        canConfigureUnidades={Boolean(selectedProyecto?.id)}
         selectedProyecto={selectedProyecto}
         onToggleMapaWindow={() => setShowWindowMapa((v) => !v)}
         onToggleProduccionWindow={() => setShowWindowTabla((v) => !v)}
@@ -204,10 +147,14 @@ function App() {
         capasBarPosition={capasBarPosition}
         onChangeCapasBarPosition={setCapasBarPosition}
         contentOverlay={
-          <ImportModal
-            isOpen={isImportModalOpen}
-            onClose={() => setIsImportModalOpen(false)}
-          />
+          <>
+            <ImportModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} />
+            <UnidadesModal
+              isOpen={isUnidadesModalOpen}
+              proyectoId={selectedProyecto?.id ?? null}
+              onClose={() => setIsUnidadesModalOpen(false)}
+            />
+          </>
         }
       >
         {!isWorkspaceReady ? (
@@ -227,16 +174,10 @@ function App() {
           <FullScreenLoader label="Este proyecto no tiene capas." />
         ) : shouldBlockForElipses ? (
           <FullScreenLoader
-            label={
-              elipsesError
-                ? `Error cargando: ${elipsesError}`
-                : `Cargando (${loadedCapas}/${totalCapas})...`
-            }
+            label={elipsesError ? `Error cargando: ${elipsesError}` : `Cargando (${loadedCapas}/${totalCapas})...`}
           />
         ) : (
-          <div
-            className={`app-workspace app-workspace--capas-${capasBarPosition}`}
-          >
+          <div className={`app-workspace app-workspace--capas-${capasBarPosition}`}>
             {showCapasBar && selectedProyecto && (
               <ProyectoCapasBar
                 proyectoId={selectedProyecto.id}

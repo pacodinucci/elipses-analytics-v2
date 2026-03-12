@@ -7,29 +7,20 @@ export function isDev(): boolean {
   return process.env.NODE_ENV === "development";
 }
 
-// ---------------------------
-// Tipos auxiliares
-// ---------------------------
 type ElectronApi = Window["electron"];
 type ElectronKey = keyof ElectronApi;
 
-// Obtiene el 1er argumento del método (payload). Si no tiene args -> never
 type PayloadOf<K extends ElectronKey> = ElectronApi[K] extends (
   payload: infer P,
 ) => any
   ? P
   : never;
 
-// Obtiene el tipo de respuesta Promise<T> -> T
 type AwaitedReturnOf<K extends ElectronKey> = ElectronApi[K] extends (
   ...args: any[]
 ) => Promise<infer R>
   ? R
   : never;
-
-// ---------------------------
-// IPC helpers
-// ---------------------------
 
 export function ipcMainHandle<K extends ElectronKey>(
   key: K,
@@ -57,13 +48,18 @@ export function ipcMainHandleWithPayload<K extends ElectronKey>(
   });
 }
 
-// ✅ OJO: el tipo en types.d.ts se llama EventPayloadMapping (sin "...ing")
 export function ipcWebContentsSend<Key extends keyof EventPayloadMapping>(
   key: Key,
   webContents: WebContents,
   payload: EventPayloadMapping[Key],
 ) {
-  webContents.send(String(key), payload);
+  if (webContents.isDestroyed()) return;
+
+  try {
+    webContents.send(String(key), payload);
+  } catch {
+    // Renderer can be disposed during reload/navigation. Ignore silently.
+  }
 }
 
 export function validateEventFrame(frame: WebFrameMain) {

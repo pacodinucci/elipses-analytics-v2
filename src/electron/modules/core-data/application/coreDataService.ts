@@ -30,6 +30,7 @@ import {
 import { CoreDataRepository } from "../infrastructure/coreDataRepository.js";
 import { variablesService } from "../../variables/application/variablesService.js";
 import { simulationService } from "../../simulations/application/simulationService.js";
+import { wellStatesService } from "../../well-states/application/wellStatesService.js";
 
 export class CoreDataService {
   private readonly repository = new CoreDataRepository();
@@ -150,6 +151,7 @@ export class CoreDataService {
     proyectoId: string,
   ): Promise<void> {
     await this.ensureDefaultTipoSimulacion();
+    await wellStatesService.ensureDefaultTiposEstadoPozo();
     await this.ensureDefaultUnidades(proyectoId);
 
     const simulacionId = randomUUID();
@@ -194,3 +196,4 @@ export class CoreDataService {
 }
 
 export const coreDataService = new CoreDataService();
+

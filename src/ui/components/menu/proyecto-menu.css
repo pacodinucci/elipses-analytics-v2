@@ -1,14 +1,12 @@
-/* src/components/menu/proyecto-menu.css */
+﻿/* src/components/menu/proyecto-menu.css */
 
 .proyectoMenu {
   position: relative;
 }
 
-/* ---------- Title ---------- */
-
 .proyectoMenu__title {
-  padding: 4px 12px; /* px-3 py-1 */
-  font-size: 14px; /* text-sm */
+  padding: 4px 12px;
+  font-size: 14px;
   cursor: pointer;
   border-radius: 4px;
 }
@@ -17,24 +15,17 @@
   background: #e1e1e1;
 }
 
-/* ---------- Dropdown ---------- */
-
 .proyectoMenu__dropdown {
   position: absolute;
   top: 100%;
   left: 0;
-
-  width: 224px; /* w-56 */
+  width: 224px;
   background: #ffffff;
-
-  border: 1px solid #cbd5e1; /* slate-300 */
+  border: 1px solid #cbd5e1;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-
   padding: 4px 0;
   z-index: 50;
 }
-
-/* ---------- Items ---------- */
 
 .proyectoMenu__item {
   padding: 4px 12px;
@@ -46,9 +37,53 @@
   background: #e7e7e7;
 }
 
-/* ---------- Separator ---------- */
+.proyectoMenu__item.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.proyectoMenu__item.is-disabled:hover {
+  background: transparent;
+}
+
+.proyectoMenu__submenuTrigger {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 12px;
+  font-size: 14px;
+  cursor: default;
+}
+
+.proyectoMenu__submenuTrigger:hover {
+  background: #e7e7e7;
+}
+
+.proyectoMenu__submenuChevron {
+  color: #64748b;
+  font-size: 14px;
+  margin-left: 8px;
+}
+
+.proyectoMenu__submenu {
+  position: absolute;
+  top: -4px;
+  left: calc(100% - 1px);
+  min-width: 180px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  padding: 4px 0;
+  display: none;
+  z-index: 60;
+}
+
+.proyectoMenu__submenuTrigger:hover .proyectoMenu__submenu {
+  display: block;
+}
 
 .proyectoMenu__separator {
-  border-top: 1px solid #e2e8f0; /* slate-200 */
+  border-top: 1px solid #e2e8f0;
   margin: 4px 0;
 }
