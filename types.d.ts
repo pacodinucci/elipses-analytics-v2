@@ -145,6 +145,10 @@ declare global {
     import("./src/electron/modules/core-data/domain/coreData.js").CreatePozoInput;
   type CreatePozoCapaInput =
     import("./src/electron/modules/core-data/domain/coreData.js").CreatePozoCapaInput;
+  type BulkUpsertPozoCapaInput =
+    import("./src/electron/modules/core-data/domain/coreData.js").BulkUpsertPozoCapaInput;
+  type BulkUpsertPozoCapaResult =
+    import("./src/electron/modules/core-data/domain/coreData.js").BulkUpsertPozoCapaResult;
 
   type CreateValorEscenarioInput =
     import("./src/electron/modules/scenario-values/domain/scenarioValue.js").CreateValorEscenarioInput;
@@ -359,6 +363,7 @@ declare global {
     corePozoListByProject: Pozo[];
 
     corePozoCapaCreate: PozoCapa;
+    corePozoCapaBulkUpsert: BulkUpsertPozoCapaResult;
     corePozoCapaListByProject: PozoCapa[];
 
     coreProyectoRecomputeArealFromPozos: { proyecto: Proyecto };
@@ -537,13 +542,12 @@ declare global {
       }) => Promise<Pozo[]>;
 
       corePozoCapaCreate: (payload: CreatePozoCapaInput) => Promise<PozoCapa>;
+      corePozoCapaBulkUpsert: (
+        payload: BulkUpsertPozoCapaInput,
+      ) => Promise<BulkUpsertPozoCapaResult>;
       corePozoCapaListByProject: (payload: {
         proyectoId: string;
       }) => Promise<PozoCapa[]>;
     };
   }
 }
-
-
-
-

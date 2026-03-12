@@ -252,6 +252,8 @@ electron.contextBridge.exposeInMainWorld("electron", {
 
   corePozoCapaCreate: (payload: unknown) =>
     electron.ipcRenderer.invoke("corePozoCapaCreate", payload),
+  corePozoCapaBulkUpsert: (payload: unknown) =>
+    electron.ipcRenderer.invoke("corePozoCapaBulkUpsert", payload),
   corePozoCapaListByProject: (payload: unknown) =>
     electron.ipcRenderer.invoke("corePozoCapaListByProject", payload),
 
@@ -280,7 +282,3 @@ function ipcOn<T>(key: string, callback: (payload: T) => void) {
   electron.ipcRenderer.on(key, cb);
   return () => electron.ipcRenderer.off(key, cb);
 }
-
-
-
-

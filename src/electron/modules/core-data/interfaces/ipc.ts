@@ -4,6 +4,7 @@ import { validateEventFrame } from "../../../util.js";
 import { coreDataService } from "../application/coreDataService.js";
 
 import type {
+  BulkUpsertPozoCapaInput,
   CreateCapaInput,
   CreatePozoCapaInput,
   CreatePozoInput,
@@ -91,6 +92,16 @@ export function registerCoreDataIpcHandlers() {
       if (!frame) throw new Error("Missing senderFrame");
       validateEventFrame(frame);
       return coreDataService.createPozoCapa(payload);
+    },
+  );
+
+  ipcMain.handle(
+    "corePozoCapaBulkUpsert",
+    async (event, payload: BulkUpsertPozoCapaInput) => {
+      const frame = event.senderFrame;
+      if (!frame) throw new Error("Missing senderFrame");
+      validateEventFrame(frame);
+      return coreDataService.bulkUpsertPozoCapa(payload);
     },
   );
 

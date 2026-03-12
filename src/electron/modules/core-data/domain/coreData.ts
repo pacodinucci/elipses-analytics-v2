@@ -70,6 +70,29 @@ export interface CreatePozoCapaInput {
   tope: number;
   base: number;
 }
+export interface BulkPozoCapaRowInput {
+  id: string;
+  rowIndex: number;
+  rowNumber: number;
+  pozoId: string;
+  capaId: string;
+  tope: number;
+  base: number;
+}
+
+export interface BulkUpsertPozoCapaInput {
+  proyectoId: string;
+  rows: BulkPozoCapaRowInput[];
+}
+
+export interface BulkUpsertPozoCapaResult {
+  created: number;
+  failed: Array<{
+    rowIndex: number;
+    rowNumber: number;
+    error: string;
+  }>;
+}
 
 function requireString(value: string, fieldName: string): void {
   if (!value || !value.trim()) {
@@ -173,5 +196,35 @@ export function validateCreatePozoCapaInput(input: CreatePozoCapaInput): void {
 
   if (input.tope >= input.base) {
     throw new Error("tope must be lower than base");
+  }
+}
+
+
+
+export function validateBulkUpsertPozoCapaInput(
+  input: BulkUpsertPozoCapaInput,
+): void {
+  requireString(input.proyectoId, "proyectoId");
+  if (!Array.isArray(input.rows)) {
+    throw new Error("rows must be an array");
+  }
+
+  for (let i = 0; i < input.rows.length; i += 1) {
+    const row = input.rows[i];
+    requireString(row.id, `rows[${i}].id`);
+    requireString(row.pozoId, `rows[${i}].pozoId`);
+    requireString(row.capaId, `rows[${i}].capaId`);
+    requireFiniteNumber(row.tope, `rows[${i}].tope`);
+    requireFiniteNumber(row.base, `rows[${i}].base`);
+    requireFiniteNumber(row.rowIndex, `rows[${i}].rowIndex`);
+    requireFiniteNumber(row.rowNumber, `rows[${i}].rowNumber`);
+
+    if (!Number.isInteger(row.rowIndex) || row.rowIndex < 0) {
+      throw new Error(`rows[${i}].rowIndex must be a non-negative integer`);
+    }
+
+    if (!Number.isInteger(row.rowNumber) || row.rowNumber <= 0) {
+      throw new Error(`rows[${i}].rowNumber must be a positive integer`);
+    }
   }
 }

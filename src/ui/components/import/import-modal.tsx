@@ -2609,7 +2609,6 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
       setPozoCapaInvalidCells(preCommitInvalidCells);
 
       let created = 0;
-      let processed = 0;
       const errors: string[] = [];
       const commitFailedRowIndices = new Set<number>();
       const commitInvalidCells: InvalidCellsMap = {};
@@ -2619,37 +2618,49 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
         phase: "committing",
         current: 0,
         total: report.rows.length,
-        message: `Creando relaciones Pozo-Capa... 0/${report.rows.length}`,
+        message: `Creando relaciones Pozo-Capa en lote... 0/${report.rows.length}`,
       });
 
-      for (const r of report.rows) {
-        try {
-          await window.electron.corePozoCapaCreate({
-            id: crypto.randomUUID(),
-            proyectoId,
-            pozoId: r.pozoId,
-            capaId: r.capaId,
-            tope: r.tope,
-            base: r.base,
-          } as any);
-          created += 1;
-        } catch (e) {
-          commitFailedRowIndices.add(r.rowIndex);
-          commitInvalidCells[`${r.rowIndex}:${colTope}`] = "dbError";
-          commitInvalidCells[`${r.rowIndex}:${colBase}`] = "dbError";
+      const bulkPayloadRows = report.rows.map((r) => ({
+        id: crypto.randomUUID(),
+        rowIndex: r.rowIndex,
+        rowNumber: r.rowNumber,
+        pozoId: r.pozoId,
+        capaId: r.capaId,
+        tope: r.tope,
+        base: r.base,
+      }));
+      const bulkChunkSize = 1000;
+      let committed = 0;
+
+      for (let i = 0; i < bulkPayloadRows.length; i += bulkChunkSize) {
+        const chunk = bulkPayloadRows.slice(i, i + bulkChunkSize);
+        const bulkResult = await window.electron.corePozoCapaBulkUpsert({
+          proyectoId,
+          rows: chunk,
+        });
+
+        created += bulkResult.created;
+        for (const failed of bulkResult.failed) {
+          commitFailedRowIndices.add(failed.rowIndex);
+          commitInvalidCells[`${failed.rowIndex}:${colTope}`] = "dbError";
+          commitInvalidCells[`${failed.rowIndex}:${colBase}`] = "dbError";
           errors.push(
-            `Linea ${r.rowNumber}: error creando PozoCapa (${e instanceof Error ? e.message : "unknown"})`,
+            `Linea ${failed.rowNumber}: error creando PozoCapa (${failed.error})`,
           );
-        } finally {
-          processed += 1;
-          updateProgress({
-            kind,
-            phase: "committing",
-            current: processed,
-            total: report.rows.length,
-            message: `Creando relaciones Pozo-Capa... ${processed}/${report.rows.length}`,
-          });
         }
+
+        committed += chunk.length;
+        updateProgress({
+          kind,
+          phase: "committing",
+          current: committed,
+          total: report.rows.length,
+          message: `Creando relaciones Pozo-Capa en lote... ${committed}/${report.rows.length}`,
+        });
+
+        // Cede el hilo para que la UI pinte el progreso entre bloques.
+        await new Promise((resolve) => window.setTimeout(resolve, 0));
       }
 
       const unresolvedAfterCommit = new Set<number>(report.unresolvedRowIndices);
@@ -2657,7 +2668,7 @@ export function ImportModal({ isOpen, onClose }: ImportModalProps) {
         unresolvedAfterCommit.add(rowIndex);
       }
       const unresolvedAfterCommitList = Array.from(unresolvedAfterCommit.values()).sort(
-        (a, b) => a ?? b,
+        (a, b) => a - b,
       );
 
       const reportAfterCommit: PozoCapaResolveReport = {
@@ -4578,99 +4589,4 @@ function FixedVirtualList<T>(props: {
     </div>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 

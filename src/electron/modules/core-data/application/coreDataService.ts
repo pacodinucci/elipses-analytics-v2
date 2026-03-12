@@ -10,6 +10,8 @@ import { migrations } from "../../../shared/db/migrations.js";
 import { databaseService } from "../../../shared/db/index.js";
 
 import type {
+  BulkUpsertPozoCapaInput,
+  BulkUpsertPozoCapaResult,
   CreateCapaInput,
   CreatePozoCapaInput,
   CreatePozoInput,
@@ -19,6 +21,7 @@ import type {
 } from "../domain/coreData.js";
 
 import {
+  validateBulkUpsertPozoCapaInput,
   validateCreateCapaInput,
   validateCreatePozoCapaInput,
   validateCreatePozoInput,
@@ -141,6 +144,14 @@ export class CoreDataService {
     return this.repository.createPozoCapa(input);
   }
 
+  async bulkUpsertPozoCapa(
+    input: BulkUpsertPozoCapaInput,
+  ): Promise<BulkUpsertPozoCapaResult> {
+    validateBulkUpsertPozoCapaInput(input);
+    await this.ensureSchema();
+    return this.repository.bulkUpsertPozoCapa(input);
+  }
+
   async listPozoCapaByProject(proyectoId: string): Promise<PozoCapa[]> {
     if (!proyectoId) throw new Error("proyectoId is required");
     await this.ensureSchema();
@@ -196,4 +207,3 @@ export class CoreDataService {
 }
 
 export const coreDataService = new CoreDataService();
-

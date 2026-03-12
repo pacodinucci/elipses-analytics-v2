@@ -7,6 +7,8 @@ import type {
 } from "../../../backend/models.js";
 import { databaseService } from "../../../shared/db/index.js";
 import type {
+  BulkUpsertPozoCapaInput,
+  BulkUpsertPozoCapaResult,
   CreateCapaInput,
   CreatePozoCapaInput,
   CreatePozoInput,
@@ -448,6 +450,148 @@ export class CoreDataRepository {
     }
   }
 
+
+  async bulkUpsertPozoCapa(
+    input: BulkUpsertPozoCapaInput,
+  ): Promise<BulkUpsertPozoCapaResult> {
+    if (input.rows.length === 0) {
+      return { created: 0, failed: [] };
+    }
+
+    const pozoRows = await databaseService.readAll(
+      `SELECT id FROM Pozo WHERE proyectoId = ?`,
+      [input.proyectoId],
+    );
+    const capaRows = await databaseService.readAll(
+      `SELECT id FROM Capa WHERE proyectoId = ?`,
+      [input.proyectoId],
+    );
+
+    const pozoIds = new Set(pozoRows.map((r) => String(r.id)));
+    const capaIds = new Set(capaRows.map((r) => String(r.id)));
+
+    const failed: BulkUpsertPozoCapaResult["failed"] = [];
+    const validRows: BulkUpsertPozoCapaInput["rows"] = [];
+
+    for (const row of input.rows) {
+      if (!pozoIds.has(row.pozoId)) {
+        failed.push({
+          rowIndex: row.rowIndex,
+          rowNumber: row.rowNumber,
+          error: `Pozo no encontrado para proyecto (${row.pozoId})`,
+        });
+        continue;
+      }
+
+      if (!capaIds.has(row.capaId)) {
+        failed.push({
+          rowIndex: row.rowIndex,
+          rowNumber: row.rowNumber,
+          error: `Capa no encontrada para proyecto (${row.capaId})`,
+        });
+        continue;
+      }
+
+      if (row.tope >= row.base) {
+        failed.push({
+          rowIndex: row.rowIndex,
+          rowNumber: row.rowNumber,
+          error: "PozoCapa invalido: tope debe ser menor que base",
+        });
+        continue;
+      }
+
+      validRows.push(row);
+    }
+
+    const chunkSize = 500;
+    const now = new Date().toISOString();
+    let created = 0;
+
+    await databaseService.run("BEGIN TRANSACTION");
+    try {
+      for (let i = 0; i < validRows.length; i += chunkSize) {
+        const chunk = validRows.slice(i, i + chunkSize);
+        const placeholders: string[] = [];
+        const params: unknown[] = [];
+
+        for (const row of chunk) {
+          placeholders.push("(?, ?, ?, ?, ?, ?, ?, ?, ?)");
+          params.push(
+            row.id,
+            input.proyectoId,
+            row.pozoId,
+            row.capaId,
+            row.tope,
+            row.base,
+            now,
+            now,
+            JSON.stringify({}),
+          );
+        }
+
+        try {
+          await databaseService.run(
+            `INSERT INTO PozoCapa (
+               id, proyectoId, pozoId, capaId, tope, base, createdAt, updatedAt, extrasJson
+             )
+             VALUES ${placeholders.join(",")}
+             ON CONFLICT(proyectoId, pozoId, capaId) DO UPDATE SET
+               tope = excluded.tope,
+               base = excluded.base,
+               updatedAt = excluded.updatedAt,
+               extrasJson = excluded.extrasJson`,
+            params,
+          );
+          created += chunk.length;
+        } catch {
+          for (const row of chunk) {
+            try {
+              await databaseService.run(
+                `INSERT INTO PozoCapa (
+                   id, proyectoId, pozoId, capaId, tope, base, createdAt, updatedAt, extrasJson
+                 )
+                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 ON CONFLICT(proyectoId, pozoId, capaId) DO UPDATE SET
+                   tope = excluded.tope,
+                   base = excluded.base,
+                   updatedAt = excluded.updatedAt,
+                   extrasJson = excluded.extrasJson`,
+                [
+                  row.id,
+                  input.proyectoId,
+                  row.pozoId,
+                  row.capaId,
+                  row.tope,
+                  row.base,
+                  now,
+                  now,
+                  JSON.stringify({}),
+                ],
+              );
+              created += 1;
+            } catch (error) {
+              failed.push({
+                rowIndex: row.rowIndex,
+                rowNumber: row.rowNumber,
+                error: error instanceof Error ? error.message : "unknown",
+              });
+            }
+          }
+        }
+      }
+
+      await databaseService.run("COMMIT");
+      return { created, failed };
+    } catch (err) {
+      try {
+        await databaseService.run("ROLLBACK");
+      } catch {
+        // noop
+      }
+      throw err;
+    }
+  }
   async listPozoCapaByProject(proyectoId: string): Promise<PozoCapa[]> {
     const rows = await databaseService.readAll(
       `SELECT id, proyectoId, pozoId, capaId, tope, base, createdAt, updatedAt, extrasJson
